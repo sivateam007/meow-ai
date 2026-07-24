@@ -25,12 +25,12 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 export const AVAILABLE_MODELS = [
-  { id: "big-pickle", name: "Big Pickle" },
-  { id: "deepseek-v4-flash", name: "DeepSeek V4 Flash" },
-  { id: "gpt-5.3-codex", name: "GPT 5.3 Codex" },
-  { id: "kimi-k2", name: "Kimi K2" },
-  { id: "gpt-5-codex", name: "GPT 5 Codex" },
-  { id: "gemini-3.1-pro", name: "Gemini 3.1 Pro" },
-  { id: "claude-opus-4-1", name: "Claude Opus 4.1" },
-  { id: "grok-code", name: "Grok Code" },
+  { id: "big-pickle", name: "Whiskers" },
+  { id: "deepseek-v4-flash", name: "Shadow" },
+  { id: "gpt-5.3-codex", name: "Mittens" },
+  { id: "kimi-k2", name: "Luna" },
+  { id: "gpt-5-codex", name: "Simba" },
+  { id: "gemini-3.1-pro", name: "Nala" },
+  { id: "claude-opus-4-1", name: "Tiger" },
+  { id: "grok-code", name: "Oreo" },
 ];

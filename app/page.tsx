@@ -23,6 +23,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [liveMode, setLiveMode] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -211,6 +212,8 @@ export default function Home() {
         isLoading={isLoading}
         onOpenSidebar={() => setSidebarOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
+        liveMode={liveMode}
+        onToggleLiveMode={() => setLiveMode((prev) => !prev)}
       />
       {settingsOpen && (
         <Settings

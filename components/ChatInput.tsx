@@ -11,8 +11,10 @@ interface ChatInputProps {
 export default function ChatInput({ onSend, isLoading }: ChatInputProps) {
   const [message, setMessage] = useState("");
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
+  const [isRecording, setIsRecording] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   const handleSend = () => {
     const trimmed = message.trim();
@@ -38,6 +40,46 @@ export default function ChatInput({ onSend, isLoading }: ChatInputProps) {
       el.style.height = "auto";
       el.style.height = Math.min(el.scrollHeight, 200) + "px";
     }
+  };
+
+  const toggleVoiceInput = () => {
+    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognitionAPI) {
+      alert("Voice input is not supported in this browser.");
+      return;
+    }
+
+    if (isRecording && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsRecording(false);
+      return;
+    }
+
+    const recognition = new SpeechRecognitionAPI();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+
+    let finalTranscript = message;
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        } else {
+          interim += event.results[i][0].transcript;
+        }
+      }
+      setMessage(finalTranscript + interim);
+    };
+
+    recognition.onend = () => setIsRecording(false);
+    recognition.onerror = () => setIsRecording(false);
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsRecording(true);
   };
 
   const handleFileSelect = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -114,7 +156,7 @@ export default function ChatInput({ onSend, isLoading }: ChatInputProps) {
           </div>
         )}
 
-        <div className="flex items-end gap-2 sm:gap-3 bg-[#1e1b2e] border border-[#3b3558] rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 focus-within:border-[#7c3aed] transition-colors">
+        <div className="flex items-end gap-1.5 sm:gap-3 bg-[#1e1b2e] border border-[#3b3558] rounded-2xl px-2.5 sm:px-4 py-2 sm:py-3 focus-within:border-[#7c3aed] transition-colors">
           <input
             ref={fileInputRef}
             type="file"
@@ -126,20 +168,36 @@ export default function ChatInput({ onSend, isLoading }: ChatInputProps) {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isLoading}
-            className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-white hover:bg-[#3d3760] transition-all"
+            className="flex-shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-white hover:bg-[#3d3760] transition-all"
             title="Attach file"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
             </svg>
           </button>
+
+          <button
+            onClick={toggleVoiceInput}
+            disabled={isLoading}
+            className={`flex-shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center transition-all ${
+              isRecording
+                ? "text-white bg-red-500 animate-pulse"
+                : "text-gray-400 hover:text-white hover:bg-[#3d3760]"
+            }`}
+            title={isRecording ? "Stop recording" : "Voice input"}
+          >
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+            </svg>
+          </button>
+
           <textarea
             ref={textareaRef}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
             onInput={handleInput}
-            placeholder="Message Meow AI..."
+            placeholder={isRecording ? "Listening..." : "Message Meow AI..."}
             rows={1}
             className="flex-1 bg-transparent outline-none text-white placeholder-gray-500 text-sm leading-relaxed min-h-[24px] max-h-[200px]"
             disabled={isLoading}
@@ -147,7 +205,7 @@ export default function ChatInput({ onSend, isLoading }: ChatInputProps) {
           <button
             onClick={handleSend}
             disabled={!canSend}
-            className={`flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
+            className={`flex-shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center transition-all ${
               canSend
                 ? "bg-[#7c3aed] hover:bg-[#a78bfa] text-white"
                 : "bg-[#2a2640] text-gray-600 cursor-not-allowed"

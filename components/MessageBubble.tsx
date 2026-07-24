@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import CodeBlock from "./CodeBlock";
@@ -8,22 +8,19 @@ import { Message } from "@/lib/types";
 
 interface MessageBubbleProps {
   message: Message;
+  autoSpeak?: boolean;
 }
 
-export default function MessageBubble({ message }: MessageBubbleProps) {
+export default function MessageBubble({ message, autoSpeak }: MessageBubbleProps) {
   const isUser = message.role === "user";
   const [speaking, setSpeaking] = useState(false);
+  const autoSpokenRef = useRef(false);
 
-  const handleSpeak = useCallback(() => {
+  const speak = useCallback((text: string) => {
     if (!("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
 
-    if (speaking) {
-      window.speechSynthesis.cancel();
-      setSpeaking(false);
-      return;
-    }
-
-    const plainText = message.content.replace(/[#*`_~\[\]()>]/g, "").replace(/\n{2,}/g, ". ");
+    const plainText = text.replace(/[#*`_~\[\]()>]/g, "").replace(/\n{2,}/g, ". ");
     const utterance = new SpeechSynthesisUtterance(plainText);
     utterance.rate = 1;
     utterance.pitch = 1;
@@ -38,7 +35,26 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
 
     window.speechSynthesis.speak(utterance);
     setSpeaking(true);
-  }, [speaking, message.content]);
+  }, []);
+
+  useEffect(() => {
+    if (autoSpeak && !autoSpokenRef.current && message.content) {
+      autoSpokenRef.current = true;
+      speak(message.content);
+    }
+    if (!autoSpeak) {
+      autoSpokenRef.current = false;
+    }
+  }, [autoSpeak, message.content, speak]);
+
+  const handleSpeak = useCallback(() => {
+    if (speaking) {
+      window.speechSynthesis.cancel();
+      setSpeaking(false);
+      return;
+    }
+    speak(message.content);
+  }, [speaking, message.content, speak]);
 
   return (
     <div className={`message-appear flex ${isUser ? "justify-end" : "justify-start"} mb-4`}>

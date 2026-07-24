@@ -27,10 +27,10 @@ export default function ChatWindow({
   }, [messages, isLoading]);
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
-      <header className="flex items-center justify-between px-4 py-3 border-b border-[#3b3558] bg-[#13111c]/80 backdrop-blur-sm flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <button onClick={onOpenSidebar} className="lg:hidden text-gray-400 hover:text-white transition-colors">
+    <div className="flex-1 flex flex-col min-h-0 min-w-0">
+      <header className="flex items-center justify-between px-3 sm:px-4 py-3 border-b border-[#3b3558] bg-[#13111c]/80 backdrop-blur-sm flex-shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <button onClick={onOpenSidebar} className="text-gray-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-[#3d3760]">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
@@ -39,7 +39,7 @@ export default function ChatWindow({
             <div className="w-7 h-7 rounded-full bg-[#7c3aed] flex items-center justify-center text-xs font-bold">
               M
             </div>
-            <span className="font-semibold text-white">Meow AI</span>
+            <span className="font-semibold text-white text-sm sm:text-base">Meow AI</span>
           </div>
         </div>
         <button
@@ -56,19 +56,19 @@ export default function ChatWindow({
       <div className="flex-1 overflow-y-auto">
         <div className="chat-bg min-h-full">
           <div className="chat-bg-overlay min-h-full">
-            <div className="max-w-4xl mx-auto px-4 py-6">
+            <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
               {messages.length === 0 && !isLoading ? (
-                <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
-                  <div className="w-20 h-20 rounded-full bg-[#7c3aed]/20 flex items-center justify-center mb-6">
-                    <div className="w-14 h-14 rounded-full bg-[#7c3aed] flex items-center justify-center text-2xl font-bold">
+                <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-2">
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#7c3aed]/20 flex items-center justify-center mb-4 sm:mb-6">
+                    <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-full bg-[#7c3aed] flex items-center justify-center text-xl sm:text-2xl font-bold">
                       M
                     </div>
                   </div>
-                  <h1 className="text-3xl font-bold text-white mb-3">Meow AI</h1>
-                  <p className="text-gray-400 text-lg max-w-md mb-8">
+                  <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 sm:mb-3">Meow AI</h1>
+                  <p className="text-gray-400 text-base sm:text-lg max-w-md mb-6 sm:mb-8">
                     Your friendly AI assistant. Ask me anything!
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-lg">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 w-full max-w-lg">
                     {[
                       "Explain quantum computing",
                       "Write a Python sorting algorithm",
@@ -92,7 +92,7 @@ export default function ChatWindow({
                   ))}
                   {isLoading && (
                     <div className="message-appear flex justify-start mb-4">
-                      <div className="max-w-[80%] rounded-2xl rounded-bl-md px-5 py-3 bg-[#2a2640] border border-[#3b3558]">
+                      <div className="max-w-[85%] sm:max-w-[80%] rounded-2xl rounded-bl-md px-4 sm:px-5 py-3 bg-[#2a2640] border border-[#3b3558]">
                         <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[#3b3558]">
                           <div className="w-6 h-6 rounded-full bg-[#7c3aed] flex items-center justify-center text-xs font-bold">
                             M

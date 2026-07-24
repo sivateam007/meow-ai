@@ -37,9 +37,9 @@ export default function ChatInput({ onSend, isLoading }: ChatInputProps) {
   };
 
   return (
-    <div className="border-t border-[#3b3558] bg-[#13111c]/80 backdrop-blur-sm p-4">
+    <div className="border-t border-[#3b3558] bg-[#13111c]/80 backdrop-blur-sm p-2 sm:p-4">
       <div className="max-w-4xl mx-auto">
-        <div className="flex items-end gap-3 bg-[#1e1b2e] border border-[#3b3558] rounded-2xl px-4 py-3 focus-within:border-[#7c3aed] transition-colors">
+        <div className="flex items-end gap-2 sm:gap-3 bg-[#1e1b2e] border border-[#3b3558] rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 focus-within:border-[#7c3aed] transition-colors">
           <textarea
             ref={textareaRef}
             value={message}
@@ -72,7 +72,7 @@ export default function ChatInput({ onSend, isLoading }: ChatInputProps) {
             )}
           </button>
         </div>
-        <p className="text-center text-xs text-gray-600 mt-2">
+        <p className="text-center text-xs text-gray-600 mt-2 hidden sm:block">
           Meow AI can make mistakes. Verify important information.
         </p>
       </div>

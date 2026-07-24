@@ -87,3 +87,19 @@ body {
 textarea {
   resize: none;
 }
+
+@supports (-webkit-touch-callout: none) {
+  .chat-bg {
+    background-attachment: scroll;
+  }
+}
+
+@media (max-width: 640px) {
+  .prose {
+    font-size: 0.875rem;
+  }
+
+  .prose pre {
+    font-size: 0.75rem;
+  }
+}

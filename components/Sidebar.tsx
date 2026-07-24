@@ -33,12 +33,12 @@ export default function Sidebar({
   return (
     <>
       {isOpen && (
-        <div className="fixed inset-0 bg-black/40 z-30 lg:hidden" onClick={onClose} />
+        <div className="fixed inset-0 bg-black/40 z-30 lg:bg-black/20" onClick={onClose} />
       )}
       <aside
         className={`fixed top-0 left-0 h-full w-72 bg-[#13111c] border-r border-[#3b3558] z-40 flex flex-col transition-transform duration-300 ${
           isOpen ? "translate-x-0" : "-translate-x-full"
-        } lg:translate-x-0`}
+        }`}
       >
         <div className="p-4 border-b border-[#3b3558]">
           <div className="flex items-center justify-between mb-4">
@@ -48,7 +48,7 @@ export default function Sidebar({
               </div>
               <span className="font-bold text-white">Meow AI</span>
             </div>
-            <button onClick={onClose} className="lg:hidden text-gray-400 hover:text-white">
+            <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-[#3d3760]">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -99,7 +99,7 @@ export default function Sidebar({
         </div>
 
         <div className="p-4 border-t border-[#3b3558] text-center text-xs text-gray-600">
-          Powered by Meow AI
+          <p>Developed by <span className="text-[#a78bfa] font-medium">Siva</span></p>
         </div>
       </aside>
     </>

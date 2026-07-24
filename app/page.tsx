@@ -155,7 +155,7 @@ export default function Home() {
     } catch (error: unknown) {
       const errorMessage: Message = {
         role: "assistant",
-        content: `Sorry, something went wrong: ${error instanceof Error ? error.message : "Unknown error"}. Please check your API key in .env.local and try again.`,
+        content: `Sorry, something went wrong. Please try again later.`,
         timestamp: Date.now(),
       };
       const errorConv = {

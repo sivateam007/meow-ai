@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
     const apiKey = process.env.OPENCODE_API_KEY;
     if (!apiKey || apiKey === "your-api-key-here") {
       return new Response(
-        JSON.stringify({ error: "API key not configured. Please add your API key to .env.local" }),
+        JSON.stringify({ error: "Service is not configured yet. Please contact support." }),
         { status: 500, headers: { "Content-Type": "application/json" } }
       );
     }
@@ -28,9 +28,8 @@ export async function POST(request: NextRequest) {
     });
 
     if (!response.ok) {
-      const error = await response.text();
       return new Response(
-        JSON.stringify({ error: `API error: ${response.status} - ${error}` }),
+        JSON.stringify({ error: "Something went wrong. Please try again later." }),
         { status: response.status, headers: { "Content-Type": "application/json" } }
       );
     }

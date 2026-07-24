@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Sidebar from "@/components/Sidebar";
 import ChatWindow from "@/components/ChatWindow";
 import Settings from "@/components/Settings";
-import { Conversation, Message, Settings as SettingsType, DEFAULT_SETTINGS } from "@/lib/types";
+import { Conversation, Message, Settings as SettingsType, DEFAULT_SETTINGS, FileAttachment } from "@/lib/types";
 import { SYSTEM_PROMPT } from "@/lib/constants";
 import {
   getConversations,
@@ -61,7 +61,7 @@ export default function Home() {
     saveSettings(newSettings);
   };
 
-  const handleSend = async (content: string) => {
+  const handleSend = async (content: string, attachments?: FileAttachment[]) => {
     let conv = activeConv;
     if (!conv) {
       conv = createConversation();
@@ -70,7 +70,7 @@ export default function Home() {
       setActiveConv(conv);
     }
 
-    const userMessage: Message = { role: "user", content, timestamp: Date.now() };
+    const userMessage: Message = { role: "user", content, timestamp: Date.now(), attachments: attachments && attachments.length > 0 ? attachments : undefined };
     const updatedMessages = [...conv.messages, userMessage];
 
     conv = { ...conv, messages: updatedMessages, updatedAt: Date.now() };
@@ -86,7 +86,19 @@ export default function Home() {
     try {
       const apiMessages = [
         { role: "system", content: SYSTEM_PROMPT },
-        ...updatedMessages.map((m) => ({ role: m.role, content: m.content })),
+        ...updatedMessages.map((m) => {
+          let msgContent = m.content;
+          if (m.attachments && m.attachments.length > 0) {
+            const fileParts = m.attachments.map((a) => {
+              if (a.type.startsWith("image/")) {
+                return `[Image attached: ${a.name}]`;
+              }
+              return `[File attached: ${a.name}]\n\`\`\`\n${a.content.substring(0, 8000)}\n\`\`\``;
+            });
+            msgContent = msgContent + "\n\n" + fileParts.join("\n\n");
+          }
+          return { role: m.role, content: msgContent };
+        }),
       ];
 
       const res = await fetch("/api/chat", {

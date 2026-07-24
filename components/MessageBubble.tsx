@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import CodeBlock from "./CodeBlock";
@@ -11,24 +12,93 @@ interface MessageBubbleProps {
 
 export default function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.role === "user";
+  const [speaking, setSpeaking] = useState(false);
+
+  const handleSpeak = useCallback(() => {
+    if (!("speechSynthesis" in window)) return;
+
+    if (speaking) {
+      window.speechSynthesis.cancel();
+      setSpeaking(false);
+      return;
+    }
+
+    const plainText = message.content.replace(/[#*`_~\[\]()>]/g, "").replace(/\n{2,}/g, ". ");
+    const utterance = new SpeechSynthesisUtterance(plainText);
+    utterance.rate = 1;
+    utterance.pitch = 1;
+    utterance.volume = 1;
+
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = voices.find((v) => v.name.includes("Google") || v.name.includes("Samantha") || v.lang.startsWith("en"));
+    if (preferred) utterance.voice = preferred;
+
+    utterance.onend = () => setSpeaking(false);
+    utterance.onerror = () => setSpeaking(false);
+
+    window.speechSynthesis.speak(utterance);
+    setSpeaking(true);
+  }, [speaking, message.content]);
 
   return (
     <div className={`message-appear flex ${isUser ? "justify-end" : "justify-start"} mb-4`}>
       <div
-        className={`max-w-[80%] rounded-2xl px-5 py-3 ${
+        className={`max-w-[85%] sm:max-w-[80%] rounded-2xl px-4 sm:px-5 py-3 ${
           isUser
             ? "bg-[#7c3aed] text-white rounded-br-md"
             : "bg-[#2a2640] border border-[#3b3558] text-gray-100 rounded-bl-md"
         }`}
       >
         {!isUser && (
-          <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[#3b3558]">
-            <div className="w-6 h-6 rounded-full bg-[#7c3aed] flex items-center justify-center text-xs font-bold">
-              M
+          <div className="flex items-center justify-between mb-2 pb-2 border-b border-[#3b3558]">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-full bg-[#7c3aed] flex items-center justify-center text-xs font-bold">
+                M
+              </div>
+              <span className="text-xs font-semibold text-[#a78bfa]">Meow AI</span>
             </div>
-            <span className="text-xs font-semibold text-[#a78bfa]">Meow AI</span>
+            <button
+              onClick={handleSpeak}
+              className={`p-1.5 rounded-lg transition-all ${
+                speaking
+                  ? "text-[#7c3aed] bg-[#7c3aed]/10"
+                  : "text-gray-500 hover:text-[#a78bfa] hover:bg-[#3d3760]"
+              }`}
+              title={speaking ? "Stop reading" : "Read aloud"}
+            >
+              {speaking ? (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                </svg>
+              )}
+            </button>
           </div>
         )}
+
+        {isUser && message.attachments && message.attachments.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-2">
+            {message.attachments.map((att, i) => (
+              <div key={i}>
+                {att.type.startsWith("image/") ? (
+                  <img src={att.content} alt={att.name} className="max-w-[200px] max-h-[150px] rounded-lg border border-white/20" />
+                ) : (
+                  <div className="bg-white/10 rounded-lg px-2 py-1 text-xs flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    {att.name}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="prose prose-invert prose-sm max-w-none">
           {isUser ? (
             <p className="whitespace-pre-wrap">{message.content}</p>

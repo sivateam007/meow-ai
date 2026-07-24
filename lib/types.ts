@@ -1,7 +1,14 @@
+export interface FileAttachment {
+  name: string;
+  type: string;
+  content: string;
+}
+
 export interface Message {
   role: "user" | "assistant" | "system";
   content: string;
   timestamp: number;
+  attachments?: FileAttachment[];
 }
 
 export interface Conversation {

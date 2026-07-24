@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Message } from "@/lib/types";
+import { Message, FileAttachment } from "@/lib/types";
 import MessageBubble from "./MessageBubble";
 import ChatInput from "./ChatInput";
 
 interface ChatWindowProps {
   messages: Message[];
-  onSend: (content: string) => void;
+  onSend: (content: string, attachments?: FileAttachment[]) => void;
   isLoading: boolean;
   onOpenSidebar: () => void;
   onOpenSettings: () => void;

@@ -44,7 +44,9 @@ export default function ChatInput({ onSend, isLoading }: ChatInputProps) {
   };
 
   const toggleVoiceInput = () => {
-    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = window as any;
+    const SpeechRecognitionAPI = w.SpeechRecognition || w.webkitSpeechRecognition;
     if (!SpeechRecognitionAPI) {
       alert("Voice input is not supported in this browser.");
       return;
@@ -63,7 +65,8 @@ export default function ChatInput({ onSend, isLoading }: ChatInputProps) {
 
     let finalTranscript = message;
 
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    recognition.onresult = (event: any) => {
       let interim = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
         if (event.results[i].isFinal) {

@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: meow-ai
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: OPENCODE_API_KEY
+        sync: false
+      - key: NODE_ENV
+        value: production

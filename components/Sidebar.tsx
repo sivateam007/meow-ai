@@ -1,5 +1,6 @@
 "use client";
 
+import { useSession, signOut } from "next-auth/react";
 import { Conversation } from "@/lib/types";
 
 interface SidebarProps {
@@ -21,6 +22,8 @@ export default function Sidebar({
   isOpen,
   onClose,
 }: SidebarProps) {
+  const { data: session } = useSession();
+
   const formatDate = (ts: number) => {
     const d = new Date(ts);
     const now = new Date();
@@ -98,8 +101,35 @@ export default function Sidebar({
           ))}
         </div>
 
-        <div className="p-4 border-t border-[#3b3558] text-center text-xs text-gray-600">
-          <p>Developed by <span className="text-[#a78bfa] font-medium">Siva</span></p>
+        <div className="p-4 border-t border-[#3b3558]">
+          <div className="flex items-center gap-3 mb-2">
+            {session?.user?.image ? (
+              <img
+                src={session.user.image}
+                alt="avatar"
+                className="w-8 h-8 rounded-full border border-[#3b3558]"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-[#7c3aed] flex items-center justify-center text-xs font-bold">
+                {session?.user?.name?.[0] || "U"}
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-gray-200 truncate">{session?.user?.name || "User"}</p>
+              <p className="text-xs text-gray-600 truncate">{session?.user?.email}</p>
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-gray-600">
+              Developed by <span className="text-[#a78bfa] font-medium">Siva</span>
+            </p>
+            <button
+              onClick={() => signOut({ callbackUrl: "/login" })}
+              className="text-xs text-gray-500 hover:text-red-400 transition-colors"
+            >
+              Sign out
+            </button>
+          </div>
         </div>
       </aside>
     </>

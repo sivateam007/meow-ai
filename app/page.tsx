@@ -1,22 +1,27 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import ChatWindow from "@/components/ChatWindow";
 import Settings from "@/components/Settings";
 import { Conversation, Message, Settings as SettingsType, DEFAULT_SETTINGS, FileAttachment } from "@/lib/types";
 import { SYSTEM_PROMPT } from "@/lib/constants";
 import {
-  getConversations,
-  saveConversation,
-  deleteConversation as deleteConv,
-  createConversation,
+  fetchConversations,
+  fetchConversation,
+  createConversationAPI,
+  updateConversationAPI,
+  deleteConversationAPI,
   getSettings,
   saveSettings,
   generateTitle,
 } from "@/lib/storage";
 
 export default function Home() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
   const [settings, setSettings] = useState<SettingsType>(DEFAULT_SETTINGS);
@@ -27,30 +32,38 @@ export default function Home() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/login");
+    }
+  }, [status, router]);
+
+  useEffect(() => {
+    if (status !== "authenticated") return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
-    setConversations(getConversations());
     setSettings(getSettings());
-  }, []);
+    fetchConversations().then(setConversations);
+  }, [status]);
 
   const refreshConversations = useCallback(() => {
-    setConversations(getConversations());
+    fetchConversations().then(setConversations);
   }, []);
 
-  const handleNewChat = () => {
-    const conv = createConversation();
-    saveConversation(conv);
-    refreshConversations();
-    setActiveConv(conv);
+  const handleNewChat = async () => {
+    const conv = await createConversationAPI("New Chat", []);
+    if (conv) {
+      refreshConversations();
+      setActiveConv(conv);
+    }
   };
 
-  const handleSelectChat = (id: string) => {
-    const conv = getConversations().find((c) => c.id === id);
+  const handleSelectChat = async (id: string) => {
+    const conv = await fetchConversation(id);
     if (conv) setActiveConv(conv);
   };
 
-  const handleDeleteChat = (id: string) => {
-    deleteConv(id);
+  const handleDeleteChat = async (id: string) => {
+    await deleteConversationAPI(id);
     refreshConversations();
     if (activeConv?.id === id) {
       setActiveConv(null);
@@ -65,8 +78,8 @@ export default function Home() {
   const handleSend = async (content: string, attachments?: FileAttachment[]) => {
     let conv = activeConv;
     if (!conv) {
-      conv = createConversation();
-      saveConversation(conv);
+      conv = await createConversationAPI("New Chat", []);
+      if (!conv) return;
       refreshConversations();
       setActiveConv(conv);
     }
@@ -74,12 +87,13 @@ export default function Home() {
     const userMessage: Message = { role: "user", content, timestamp: Date.now(), attachments: attachments && attachments.length > 0 ? attachments : undefined };
     const updatedMessages = [...conv.messages, userMessage];
 
-    conv = { ...conv, messages: updatedMessages, updatedAt: Date.now() };
+    let newTitle = conv.title;
     if (updatedMessages.length === 1) {
-      conv.title = generateTitle(content);
+      newTitle = generateTitle(content);
     }
+
+    conv = { ...conv, title: newTitle, messages: updatedMessages, updatedAt: Date.now() };
     setActiveConv({ ...conv });
-    saveConversation(conv);
     refreshConversations();
 
     setIsLoading(true);
@@ -157,12 +171,17 @@ export default function Home() {
         }
       }
 
-      const finalConv = {
-        ...conv!,
-        messages: [...updatedMessages, { ...assistantMessage, content: assistantContent }],
-        updatedAt: Date.now(),
-      };
-      saveConversation(finalConv);
+      const finalMessages = [...updatedMessages, { ...assistantMessage, content: assistantContent }];
+      await updateConversationAPI(conv.id, {
+        title: newTitle,
+        messages: finalMessages.map((m) => ({
+          role: m.role,
+          content: m.content,
+          timestamp: m.timestamp,
+          ...(m.attachments ? { attachments: m.attachments } : {}),
+        })),
+      });
+      const finalConv = { ...conv, title: newTitle, messages: finalMessages, updatedAt: Date.now() };
       setActiveConv(finalConv);
       refreshConversations();
     } catch (error: unknown) {
@@ -177,13 +196,19 @@ export default function Home() {
         updatedAt: Date.now(),
       };
       setActiveConv(errorConv);
-      saveConversation(errorConv);
+      await updateConversationAPI(conv!.id, {
+        messages: [...updatedMessages, errorMessage].map((m) => ({
+          role: m.role,
+          content: m.content,
+          timestamp: m.timestamp,
+        })),
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (!mounted) {
+  if (status === "loading" || !mounted) {
     return (
       <div className="h-screen flex items-center justify-center bg-[#13111c]">
         <div className="flex gap-1.5">
@@ -194,6 +219,8 @@ export default function Home() {
       </div>
     );
   }
+
+  if (!session) return null;
 
   return (
     <div className="h-screen flex overflow-hidden bg-[#13111c]">

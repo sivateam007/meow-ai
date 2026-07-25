@@ -1,52 +1,6 @@
 import { Conversation, DEFAULT_SETTINGS, Settings } from "./types";
 
-const CONVERSATIONS_KEY = "meow-ai-conversations";
 const SETTINGS_KEY = "meow-ai-settings";
-
-export function getConversations(): Conversation[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const data = localStorage.getItem(CONVERSATIONS_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch {
-    return [];
-  }
-}
-
-export function saveConversations(conversations: Conversation[]) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(conversations));
-}
-
-export function getConversation(id: string): Conversation | undefined {
-  return getConversations().find((c) => c.id === id);
-}
-
-export function createConversation(): Conversation {
-  return {
-    id: crypto.randomUUID(),
-    title: "New Chat",
-    messages: [],
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  };
-}
-
-export function saveConversation(conversation: Conversation) {
-  const conversations = getConversations();
-  const index = conversations.findIndex((c) => c.id === conversation.id);
-  if (index >= 0) {
-    conversations[index] = conversation;
-  } else {
-    conversations.unshift(conversation);
-  }
-  saveConversations(conversations);
-}
-
-export function deleteConversation(id: string) {
-  const conversations = getConversations().filter((c) => c.id !== id);
-  saveConversations(conversations);
-}
 
 export function getSettings(): Settings {
   if (typeof window === "undefined") return DEFAULT_SETTINGS;
@@ -66,4 +20,47 @@ export function saveSettings(settings: Settings) {
 export function generateTitle(content: string): string {
   const clean = content.replace(/[#*`_~\[\]]/g, "").trim();
   return clean.length > 40 ? clean.substring(0, 40) + "..." : clean;
+}
+
+export async function fetchConversations(): Promise<Conversation[]> {
+  const res = await fetch("/api/conversations");
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function fetchConversation(id: string): Promise<Conversation | null> {
+  const res = await fetch(`/api/conversations/${id}`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function createConversationAPI(
+  title: string,
+  messages: { role: string; content: string; timestamp: number; attachments?: unknown }[]
+): Promise<Conversation | null> {
+  const res = await fetch("/api/conversations", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title, messages }),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function updateConversationAPI(
+  id: string,
+  data: { title?: string; messages?: { role: string; content: string; timestamp: number; attachments?: unknown }[] }
+): Promise<Conversation | null> {
+  const res = await fetch(`/api/conversations/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function deleteConversationAPI(id: string): Promise<boolean> {
+  const res = await fetch(`/api/conversations/${id}`, { method: "DELETE" });
+  return res.ok;
 }

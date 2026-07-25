@@ -35,9 +35,9 @@ export const AVAILABLE_MODELS = [
   { id: "big-pickle", name: "Whiskers" },
   { id: "deepseek-v4-flash", name: "Shadow" },
   { id: "gpt-5.3-codex", name: "Mittens" },
-  { id: "kimi-k2", name: "Luna" },
+  { id: "kimi-k2.5", name: "Luna" },
   { id: "gpt-5-codex", name: "Simba" },
   { id: "gemini-3.1-pro", name: "Nala" },
   { id: "claude-opus-4-1", name: "Tiger" },
-  { id: "grok-code", name: "Oreo" },
+  { id: "grok-4.5", name: "Oreo" },
 ];

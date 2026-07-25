@@ -6,8 +6,8 @@
     "dev": "next dev",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
-    "build": "next build",
-    "start": "prisma db push && next start",
+    "build": "prisma generate && prisma db push --skip-generate && next build",
+    "start": "next start",
     "lint": "next lint"
   },
   "dependencies": {

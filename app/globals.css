@@ -41,8 +41,7 @@ body {
 }
 
 .chat-bg-overlay {
-  background: rgba(19, 17, 28, 0.82);
-  backdrop-filter: blur(8px);
+  background: rgba(19, 17, 28, 0.55);
 }
 
 @keyframes blink {

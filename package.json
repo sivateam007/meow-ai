@@ -4,8 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && prisma db push && next build",
-    "start": "next start",
+    "postinstall": "prisma generate",
+    "db:push": "prisma db push",
+    "build": "next build",
+    "start": "prisma db push && next start",
     "lint": "next lint"
   },
   "dependencies": {

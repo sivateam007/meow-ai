@@ -33,11 +33,10 @@ export const DEFAULT_SETTINGS: Settings = {
 
 export const AVAILABLE_MODELS = [
   { id: "big-pickle", name: "Whiskers" },
-  { id: "deepseek-v4-flash", name: "Shadow" },
-  { id: "gpt-5.3-codex", name: "Mittens" },
-  { id: "kimi-k2.5", name: "Luna" },
-  { id: "gpt-5-codex", name: "Simba" },
-  { id: "gemini-3.1-pro", name: "Nala" },
-  { id: "claude-opus-4-1", name: "Tiger" },
-  { id: "grok-4.5", name: "Oreo" },
+  { id: "deepseek-v4-flash-free", name: "Shadow" },
+  { id: "mimo-v2.5-free", name: "Mittens" },
+  { id: "ling-3.0-flash-free", name: "Luna" },
+  { id: "nemotron-3-ultra-free", name: "Simba" },
+  { id: "north-mini-code-free", name: "Oreo" },
+  { id: "laguna-s-2.1-free", name: "Nala" },
 ];

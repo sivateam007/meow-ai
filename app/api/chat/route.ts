@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
           const lastIdx = enhancedMessages.length - 1;
           enhancedMessages[lastIdx] = {
             ...enhancedMessages[lastIdx],
-            content: searchContext + "\n\nUser question: " + enhancedMessages[lastIdx].content + "\n\nBased on the web search results above, please answer the user's question.",
+            content: searchContext + "\n\nUser question: " + enhancedMessages[lastIdx].content,
           };
         }
       }

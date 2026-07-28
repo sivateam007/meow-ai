@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { webSearch, formatSearchResults } from "@/lib/search";
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,6 +13,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    let enhancedMessages = messages;
+
+    if (settings?.webSearch) {
+      const lastUserMsg = [...messages].reverse().find((m: { role: string }) => m.role === "user");
+      if (lastUserMsg) {
+        const results = await webSearch(lastUserMsg.content);
+        const searchContext = formatSearchResults(results);
+        if (searchContext) {
+          enhancedMessages = messages.map((m: { role: string; content: string }) => {
+            if (m.role === "system") {
+              return { ...m, content: m.content + "\n\n" + searchContext };
+            }
+            return m;
+          });
+        }
+      }
+    }
+
     const response = await fetch("https://opencode.ai/zen/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -20,7 +39,7 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         model: settings?.model || "big-pickle",
-        messages,
+        messages: enhancedMessages,
         temperature: settings?.temperature ?? 0.7,
         max_tokens: settings?.maxTokens ?? 2048,
         stream: true,

@@ -9,6 +9,7 @@ A friendly AI chat assistant with a cat theme, built with Next.js.
 - Voice input (speech recognition)
 - Read aloud (text-to-speech) on responses
 - Live mode for automatic voice responses
+- Web search for real-time data (DuckDuckGo)
 - File/image uploads
 - Code syntax highlighting
 - 7 free AI models with cat names

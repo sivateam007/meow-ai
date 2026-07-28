@@ -13,6 +13,8 @@ interface ChatWindowProps {
   onOpenSettings: () => void;
   liveMode: boolean;
   onToggleLiveMode: () => void;
+  webSearch: boolean;
+  onToggleWebSearch: () => void;
 }
 
 export default function ChatWindow({
@@ -23,6 +25,8 @@ export default function ChatWindow({
   onOpenSettings,
   liveMode,
   onToggleLiveMode,
+  webSearch,
+  onToggleWebSearch,
 }: ChatWindowProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -142,7 +146,7 @@ export default function ChatWindow({
         </div>
       </div>
 
-      <ChatInput onSend={onSend} isLoading={isLoading} />
+      <ChatInput onSend={onSend} isLoading={isLoading} webSearch={webSearch} onToggleWebSearch={onToggleWebSearch} />
     </div>
   );
 }

@@ -75,6 +75,12 @@ export default function Home() {
     saveSettings(newSettings);
   };
 
+  const handleToggleWebSearch = () => {
+    const updated = { ...settings, webSearch: !settings.webSearch };
+    setSettings(updated);
+    saveSettings(updated);
+  };
+
   const handleSend = async (content: string, attachments?: FileAttachment[]) => {
     let conv = activeConv;
     if (!conv) {
@@ -241,6 +247,8 @@ export default function Home() {
         onOpenSettings={() => setSettingsOpen(true)}
         liveMode={liveMode}
         onToggleLiveMode={() => setLiveMode((prev) => !prev)}
+        webSearch={settings.webSearch}
+        onToggleWebSearch={handleToggleWebSearch}
       />
       {settingsOpen && (
         <Settings

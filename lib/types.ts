@@ -23,12 +23,14 @@ export interface Settings {
   model: string;
   temperature: number;
   maxTokens: number;
+  webSearch: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   model: "big-pickle",
   temperature: 0.7,
   maxTokens: 2048,
+  webSearch: false,
 };
 
 export const AVAILABLE_MODELS = [

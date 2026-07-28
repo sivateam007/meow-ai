@@ -15,7 +15,7 @@ export async function webSearch(query: string): Promise<SearchResult[]> {
     return results.results.slice(0, 5).map((r) => ({
       title: r.title,
       url: r.url,
-      snippet: r.snippet,
+      snippet: r.description,
     }));
   } catch {
     return [];

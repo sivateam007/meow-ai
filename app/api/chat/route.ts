@@ -21,12 +21,12 @@ export async function POST(request: NextRequest) {
         const results = await webSearch(lastUserMsg.content);
         const searchContext = formatSearchResults(results);
         if (searchContext) {
-          enhancedMessages = messages.map((m: { role: string; content: string }) => {
-            if (m.role === "system") {
-              return { ...m, content: m.content + "\n\n" + searchContext };
-            }
-            return m;
-          });
+          enhancedMessages = [...messages];
+          const lastIdx = enhancedMessages.length - 1;
+          enhancedMessages[lastIdx] = {
+            ...enhancedMessages[lastIdx],
+            content: searchContext + "\n\nUser question: " + enhancedMessages[lastIdx].content + "\n\nBased on the web search results above, please answer the user's question.",
+          };
         }
       }
     }

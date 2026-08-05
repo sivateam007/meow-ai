@@ -18,6 +18,17 @@ model Conversation {
   @@index([userEmail])
 }
 
+model AppUser {
+  email       String    @id
+  name        String?
+  isAdmin     Boolean   @default(false)
+  status      String    @default("pending")
+  requestedAt DateTime?
+  grantedAt   DateTime?
+  lastSeenAt  DateTime?
+  createdAt   DateTime  @default(now())
+}
+
 model Message {
   id             String       @id @default(cuid())
   conversationId String

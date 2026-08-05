@@ -25,12 +25,23 @@ export default function Sidebar({
 }: SidebarProps) {
   const { data: session } = useSession();
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     if (!confirmId) return;
     const t = setTimeout(() => setConfirmId(null), 3000);
     return () => clearTimeout(t);
   }, [confirmId]);
+
+  useEffect(() => {
+    fetch("/api/admin/me", { headers: { "X-Requested-With": "XMLHttpRequest" } })
+      .then((res) => {
+        if (res.ok) return res.json();
+        return { isAdmin: false };
+      })
+      .then((data) => setIsAdmin(data.isAdmin === true))
+      .catch(() => setIsAdmin(false));
+  }, []);
 
   const formatDate = (ts: number) => {
     const d = new Date(ts);
@@ -155,12 +166,22 @@ export default function Sidebar({
             <p className="text-xs text-gray-600">
               Developed by <span className="text-[#a78bfa] font-medium">Siva</span>
             </p>
-            <button
-              onClick={() => signOut({ callbackUrl: "/login" })}
-              className="text-xs text-gray-500 hover:text-red-400 transition-colors"
-            >
-              Sign out
-            </button>
+            <div className="flex items-center gap-2">
+              {isAdmin && (
+                <a
+                  href="/admin"
+                  className="text-xs text-gray-500 hover:text-[#a78bfa] transition-colors"
+                >
+                  Admin
+                </a>
+              )}
+              <button
+                onClick={() => signOut({ callbackUrl: "/login" })}
+                className="text-xs text-gray-500 hover:text-red-400 transition-colors"
+              >
+                Sign out
+              </button>
+            </div>
           </div>
         </div>
       </aside>

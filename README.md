@@ -10,7 +10,8 @@ A friendly AI chat assistant with a cat theme, built with Next.js.
 - Read aloud (text-to-speech) on responses
 - Live mode for automatic voice responses
 - Web search for real-time data (DuckDuckGo)
-- File/image uploads
+- File uploads (text and code)
+- Invite-only access with admin approval
 - Code syntax highlighting
 - 7 free AI models with cat names
 - Mobile-responsive design
@@ -36,7 +37,9 @@ AUTH_GOOGLE_ID=
 AUTH_GOOGLE_SECRET=
 AUTH_SECRET=
 DATABASE_URL=
-API_KEY=
+OPENCODE_API_KEY=
+MEOW_AI_ADMIN_EMAILS=   # comma-separated admin emails (required to access /admin)
+MEOW_AI_ALLOWED_EMAILS= # optional comma-separated allowlist; unset = invite-only via admin grants
 ```
 
 ## Author

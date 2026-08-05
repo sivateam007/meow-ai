@@ -190,6 +190,8 @@ export default function MessageBubble({ message, autoSpeak, canRegenerate, onReg
                   return <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>;
                 },
                 a({ href, children }) {
+                  const safe = href && /^(https?:|mailto:)/i.test(href);
+                  if (!safe) return <span>{children}</span>;
                   return (
                     <a
                       href={href}

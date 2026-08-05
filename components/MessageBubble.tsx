@@ -5,20 +5,24 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import CodeBlock from "./CodeBlock";
 import { Message } from "@/lib/types";
+import { markdownToPlainText } from "@/lib/markdown";
 
 interface MessageBubbleProps {
   message: Message;
   autoSpeak?: boolean;
+  canRegenerate?: boolean;
+  onRegenerate?: () => void;
+  isLoading?: boolean;
 }
 
-export default function MessageBubble({ message, autoSpeak }: MessageBubbleProps) {
+export default function MessageBubble({ message, autoSpeak, canRegenerate, onRegenerate, isLoading }: MessageBubbleProps) {
   const isUser = message.role === "user";
   const [speaking, setSpeaking] = useState(false);
   const [copied, setCopied] = useState(false);
   const autoSpokenRef = useRef(false);
 
   const handleCopy = useCallback(async () => {
-    await navigator.clipboard.writeText(message.content);
+    await navigator.clipboard.writeText(markdownToPlainText(message.content));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }, [message.content]);
@@ -81,6 +85,17 @@ export default function MessageBubble({ message, autoSpeak }: MessageBubbleProps
               <span className="text-xs font-semibold text-[#a78bfa]">Meow AI</span>
             </div>
             <div className="flex items-center gap-1">
+              {canRegenerate && !isLoading && (
+                <button
+                  onClick={onRegenerate}
+                  className="p-1.5 rounded-lg transition-all text-gray-500 hover:text-[#a78bfa] hover:bg-[#3d3760]"
+                  title="Regenerate response"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
+              )}
               <button
                 onClick={handleCopy}
                 className={`p-1.5 rounded-lg transition-all ${

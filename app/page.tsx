@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
@@ -30,6 +30,7 @@ export default function Home() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [liveMode, setLiveMode] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -81,6 +82,121 @@ export default function Home() {
     saveSettings(updated);
   };
 
+  const streamResponse = async (conv: Conversation, msgs: Message[], title: string) => {
+    setIsLoading(true);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    let assistantContent = "";
+    const assistantMessage: Message = { role: "assistant", content: "", timestamp: Date.now() };
+
+    try {
+      const apiMessages = [
+        { role: "system", content: SYSTEM_PROMPT },
+        ...msgs.map((m) => {
+          let msgContent = m.content;
+          if (m.attachments && m.attachments.length > 0) {
+            const fileParts = m.attachments.map((a) => {
+              if (a.type.startsWith("image/")) {
+                return `[Image attached: ${a.name}]`;
+              }
+              return `[File attached: ${a.name}]\n\`\`\`\n${a.content.substring(0, 8000)}\n\`\`\``;
+            });
+            msgContent = msgContent + "\n\n" + fileParts.join("\n\n");
+          }
+          return { role: m.role, content: msgContent };
+        }),
+      ];
+
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: apiMessages, settings }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to get response");
+      }
+
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split("\n").filter((l) => l.startsWith("data: "));
+
+          for (const line of lines) {
+            const data = line.slice(6);
+            if (data === "[DONE]") break;
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.content) {
+                assistantContent += parsed.content;
+                assistantMessage.content = assistantContent;
+                setActiveConv((prev) => {
+                  if (!prev) return prev;
+                  const ms = [...prev.messages];
+                  if (ms.length > 0 && ms[ms.length - 1].role === "assistant") {
+                    ms[ms.length - 1] = { ...assistantMessage };
+                  } else {
+                    ms.push({ ...assistantMessage });
+                  }
+                  return { ...prev, messages: ms, updatedAt: Date.now() };
+                });
+              }
+            } catch {
+              // skip
+            }
+          }
+        }
+      }
+
+      const finalMessages = [...msgs, { ...assistantMessage, content: assistantContent }];
+      await updateConversationAPI(conv.id, {
+        title,
+        messages: finalMessages.map((m) => ({
+          role: m.role,
+          content: m.content,
+          timestamp: m.timestamp,
+          ...(m.attachments ? { attachments: m.attachments } : {}),
+        })),
+      });
+      const finalConv = { ...conv, title, messages: finalMessages, updatedAt: Date.now() };
+      setActiveConv(finalConv);
+      refreshConversations();
+    } catch (error: unknown) {
+      if (controller.signal.aborted) return;
+      const errorMessage: Message = {
+        role: "assistant",
+        content: `Sorry, something went wrong. Please try again later.`,
+        timestamp: Date.now(),
+      };
+      const errorConv = {
+        ...conv,
+        messages: [...msgs, errorMessage],
+        updatedAt: Date.now(),
+      };
+      setActiveConv(errorConv);
+      await updateConversationAPI(conv.id, {
+        messages: [...msgs, errorMessage].map((m) => ({
+          role: m.role,
+          content: m.content,
+          timestamp: m.timestamp,
+        })),
+      });
+    } finally {
+      abortRef.current = null;
+      setIsLoading(false);
+    }
+  };
+
   const handleSend = async (content: string, attachments?: FileAttachment[]) => {
     let conv = activeConv;
     if (!conv) {
@@ -102,116 +218,22 @@ export default function Home() {
     setActiveConv({ ...conv });
     refreshConversations();
 
-    setIsLoading(true);
+    await streamResponse(conv, updatedMessages, newTitle);
+  };
 
-    try {
-      const apiMessages = [
-        { role: "system", content: SYSTEM_PROMPT },
-        ...updatedMessages.map((m) => {
-          let msgContent = m.content;
-          if (m.attachments && m.attachments.length > 0) {
-            const fileParts = m.attachments.map((a) => {
-              if (a.type.startsWith("image/")) {
-                return `[Image attached: ${a.name}]`;
-              }
-              return `[File attached: ${a.name}]\n\`\`\`\n${a.content.substring(0, 8000)}\n\`\`\``;
-            });
-            msgContent = msgContent + "\n\n" + fileParts.join("\n\n");
-          }
-          return { role: m.role, content: msgContent };
-        }),
-      ];
+  const handleRegenerate = async () => {
+    if (!activeConv || isLoading) return;
+    const msgs = activeConv.messages;
+    const lastIdx = msgs.length - 1;
+    if (lastIdx < 0 || msgs[lastIdx].role !== "assistant") return;
+    const previousMessages = msgs.slice(0, lastIdx);
+    await streamResponse(activeConv, previousMessages, activeConv.title);
+  };
 
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: apiMessages, settings }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to get response");
-      }
-
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder();
-      let assistantContent = "";
-
-      const assistantMessage: Message = {
-        role: "assistant",
-        content: "",
-        timestamp: Date.now(),
-      };
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split("\n").filter((l) => l.startsWith("data: "));
-
-          for (const line of lines) {
-            const data = line.slice(6);
-            if (data === "[DONE]") break;
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.content) {
-                assistantContent += parsed.content;
-                assistantMessage.content = assistantContent;
-                setActiveConv((prev) => {
-                  if (!prev) return prev;
-                  const msgs = [...prev.messages];
-                  if (msgs.length > 0 && msgs[msgs.length - 1].role === "assistant") {
-                    msgs[msgs.length - 1] = { ...assistantMessage };
-                  } else {
-                    msgs.push({ ...assistantMessage });
-                  }
-                  return { ...prev, messages: msgs, updatedAt: Date.now() };
-                });
-              }
-            } catch {
-              // skip
-            }
-          }
-        }
-      }
-
-      const finalMessages = [...updatedMessages, { ...assistantMessage, content: assistantContent }];
-      await updateConversationAPI(conv.id, {
-        title: newTitle,
-        messages: finalMessages.map((m) => ({
-          role: m.role,
-          content: m.content,
-          timestamp: m.timestamp,
-          ...(m.attachments ? { attachments: m.attachments } : {}),
-        })),
-      });
-      const finalConv = { ...conv, title: newTitle, messages: finalMessages, updatedAt: Date.now() };
-      setActiveConv(finalConv);
-      refreshConversations();
-    } catch (error: unknown) {
-      const errorMessage: Message = {
-        role: "assistant",
-        content: `Sorry, something went wrong. Please try again later.`,
-        timestamp: Date.now(),
-      };
-      const errorConv = {
-        ...conv!,
-        messages: [...updatedMessages, errorMessage],
-        updatedAt: Date.now(),
-      };
-      setActiveConv(errorConv);
-      await updateConversationAPI(conv!.id, {
-        messages: [...updatedMessages, errorMessage].map((m) => ({
-          role: m.role,
-          content: m.content,
-          timestamp: m.timestamp,
-        })),
-      });
-    } finally {
-      setIsLoading(false);
-    }
+  const handleStop = () => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setIsLoading(false);
   };
 
   if (status === "loading" || !mounted) {
@@ -243,6 +265,8 @@ export default function Home() {
         messages={activeConv?.messages || []}
         onSend={handleSend}
         isLoading={isLoading}
+        onStop={handleStop}
+        onRegenerate={handleRegenerate}
         onOpenSidebar={() => setSidebarOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
         liveMode={liveMode}

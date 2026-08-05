@@ -9,6 +9,8 @@ interface ChatWindowProps {
   messages: Message[];
   onSend: (content: string, attachments?: FileAttachment[]) => void;
   isLoading: boolean;
+  onStop: () => void;
+  onRegenerate: () => void;
   onOpenSidebar: () => void;
   onOpenSettings: () => void;
   liveMode: boolean;
@@ -21,6 +23,8 @@ export default function ChatWindow({
   messages,
   onSend,
   isLoading,
+  onStop,
+  onRegenerate,
   onOpenSidebar,
   onOpenSettings,
   liveMode,
@@ -36,6 +40,7 @@ export default function ChatWindow({
 
   const lastAssistantMsg = messages.filter((m) => m.role === "assistant").pop();
   const lastMsgIndex = lastAssistantMsg ? messages.indexOf(lastAssistantMsg) : -1;
+  const canRegenerate = lastMsgIndex >= 0 && lastMsgIndex === messages.length - 1;
 
   return (
     <div className="flex-1 flex flex-col min-h-0 min-w-0">
@@ -119,6 +124,9 @@ export default function ChatWindow({
                       key={i}
                       message={msg}
                       autoSpeak={liveMode && msg.role === "assistant" && i === lastMsgIndex && !isLoading}
+                      canRegenerate={msg.role === "assistant" && i === lastMsgIndex && !isLoading}
+                      onRegenerate={onRegenerate}
+                      isLoading={isLoading}
                     />
                   ))}
                   {isLoading && (
@@ -146,7 +154,7 @@ export default function ChatWindow({
         </div>
       </div>
 
-      <ChatInput onSend={onSend} isLoading={isLoading} webSearch={webSearch} onToggleWebSearch={onToggleWebSearch} />
+      <ChatInput onSend={onSend} isLoading={isLoading} onStop={onStop} webSearch={webSearch} onToggleWebSearch={onToggleWebSearch} />
     </div>
   );
 }

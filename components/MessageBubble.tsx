@@ -14,7 +14,14 @@ interface MessageBubbleProps {
 export default function MessageBubble({ message, autoSpeak }: MessageBubbleProps) {
   const isUser = message.role === "user";
   const [speaking, setSpeaking] = useState(false);
+  const [copied, setCopied] = useState(false);
   const autoSpokenRef = useRef(false);
+
+  const handleCopy = useCallback(async () => {
+    await navigator.clipboard.writeText(message.content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [message.content]);
 
   const speak = useCallback((text: string) => {
     if (!("speechSynthesis" in window)) return;
@@ -73,8 +80,28 @@ export default function MessageBubble({ message, autoSpeak }: MessageBubbleProps
               </div>
               <span className="text-xs font-semibold text-[#a78bfa]">Meow AI</span>
             </div>
-            <button
-              onClick={handleSpeak}
+            <div className="flex items-center gap-1">
+              <button
+                onClick={handleCopy}
+                className={`p-1.5 rounded-lg transition-all ${
+                  copied
+                    ? "text-[#7c3aed] bg-[#7c3aed]/10"
+                    : "text-gray-500 hover:text-[#a78bfa] hover:bg-[#3d3760]"
+                }`}
+                title={copied ? "Copied!" : "Copy message"}
+              >
+                {copied ? (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                )}
+              </button>
+              <button
+                onClick={handleSpeak}
               className={`p-1.5 rounded-lg transition-all ${
                 speaking
                   ? "text-[#7c3aed] bg-[#7c3aed]/10"
@@ -93,6 +120,7 @@ export default function MessageBubble({ message, autoSpeak }: MessageBubbleProps
                 </svg>
               )}
             </button>
+            </div>
           </div>
         )}
 
@@ -201,6 +229,30 @@ export default function MessageBubble({ message, autoSpeak }: MessageBubbleProps
             </ReactMarkdown>
           )}
         </div>
+
+        {isUser && (
+          <div className="flex justify-end mt-1">
+            <button
+              onClick={handleCopy}
+              className={`p-1.5 rounded-lg transition-all ${
+                copied
+                  ? "text-white bg-white/20"
+                  : "text-white/50 hover:text-white hover:bg-white/10"
+              }`}
+              title={copied ? "Copied!" : "Copy message"}
+            >
+              {copied ? (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              )}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -6,7 +6,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ email: string }> }
 ) {
-  const admin = await requireAdmin(request);
+  const admin = await requireAdmin(request, { max: 30 });
   if (admin instanceof Response) return admin;
 
   const { email } = await params;

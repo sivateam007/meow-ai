@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { rateLimit } from "@/lib/ratelimit";
 
 export function isAdminEmail(email: string): boolean {
   const admins = process.env.MEOW_AI_ADMIN_EMAILS;
@@ -31,7 +32,8 @@ export async function isAdmin(email: string): Promise<boolean> {
 }
 
 export async function requireAdmin(
-  request: NextRequest
+  request: NextRequest,
+  opts?: { max?: number; windowMs?: number }
 ): Promise<{ email: string } | Response> {
   const session = await auth();
   if (!session?.user?.email) {
@@ -53,5 +55,12 @@ export async function requireAdmin(
       headers: { "Content-Type": "application/json" },
     });
   }
-  return { email: session.user.email };
+  const email = session.user.email;
+  if (!rateLimit(`admin:${email.toLowerCase()}`, opts?.max ?? 120, opts?.windowMs)) {
+    return new Response(
+      JSON.stringify({ error: "Too many requests. Please wait and try again later." }),
+      { status: 429, headers: { "Content-Type": "application/json" } }
+    );
+  }
+  return { email };
 }

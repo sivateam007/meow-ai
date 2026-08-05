@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { Conversation } from "@/lib/types";
 
@@ -23,6 +24,13 @@ export default function Sidebar({
   onClose,
 }: SidebarProps) {
   const { data: session } = useSession();
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!confirmId) return;
+    const t = setTimeout(() => setConfirmId(null), 3000);
+    return () => clearTimeout(t);
+  }, [confirmId]);
 
   const formatDate = (ts: number) => {
     const d = new Date(ts);
@@ -89,14 +97,38 @@ export default function Sidebar({
                 <p className="text-sm text-gray-200 truncate">{conv.title}</p>
                 <p className="text-xs text-gray-600">{formatDate(conv.updatedAt)}</p>
               </div>
-              <button
-                onClick={(e) => { e.stopPropagation(); onDelete(conv.id); }}
-                className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 transition-all p-1"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
+              {confirmId === conv.id ? (
+                <div className="flex items-center gap-0.5">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setConfirmId(null); }}
+                    className="text-gray-400 hover:text-white transition-all p-1"
+                    title="Cancel"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setConfirmId(null); onDelete(conv.id); }}
+                    className="text-red-400 hover:text-red-300 transition-all p-1"
+                    title="Delete conversation"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setConfirmId(conv.id); }}
+                  className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 transition-all p-1"
+                  title="Delete"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              )}
             </div>
           ))}
         </div>

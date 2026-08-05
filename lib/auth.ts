@@ -18,6 +18,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     authorized({ auth }) {
       return !!auth;
     },
+    signIn({ user }) {
+      const allowed = process.env.MEOW_AI_ALLOWED_EMAILS;
+      if (!allowed || !user.email) return true;
+      return allowed
+        .split(",")
+        .map((e) => e.trim().toLowerCase())
+        .includes(user.email.toLowerCase());
+    },
   },
   trustHost: true,
 });

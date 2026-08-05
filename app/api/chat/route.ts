@@ -1,8 +1,17 @@
 import { NextRequest } from "next/server";
+import { auth } from "@/lib/auth";
 import { webSearch, formatSearchResults } from "@/lib/search";
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await auth();
+    if (!session?.user?.email) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
     const { messages, settings } = await request.json();
 
     const apiKey = process.env.OPENCODE_API_KEY;
@@ -47,8 +56,18 @@ export async function POST(request: NextRequest) {
     });
 
     if (!response.ok) {
+      let message = "Something went wrong. Please try again later.";
+      try {
+        const errBody = await response.json();
+        if (errBody?.error?.message) message = errBody.error.message;
+        else if (typeof errBody?.error === "string") message = errBody.error;
+        else if (errBody?.message) message = errBody.message;
+      } catch {
+        // ignore unparsable error bodies
+      }
+      if (message.length > 300) message = message.substring(0, 300) + "...";
       return new Response(
-        JSON.stringify({ error: "Something went wrong. Please try again later." }),
+        JSON.stringify({ error: message }),
         { status: response.status, headers: { "Content-Type": "application/json" } }
       );
     }

@@ -102,28 +102,20 @@ export default function ChatInput({ onSend, isLoading, onStop, webSearch, onTogg
       }
 
       if (file.type.startsWith("image/")) {
-        const reader = new FileReader();
-        const dataUrl = await new Promise<string>((resolve) => {
-          reader.onload = () => resolve(reader.result as string);
-          reader.readAsDataURL(file);
-        });
-        newAttachments.push({
-          name: file.name,
-          type: file.type,
-          content: dataUrl,
-        });
-      } else {
-        const reader = new FileReader();
-        const text = await new Promise<string>((resolve) => {
-          reader.onload = () => resolve(reader.result as string);
-          reader.readAsText(file);
-        });
-        newAttachments.push({
-          name: file.name,
-          type: file.type,
-          content: text,
-        });
+        alert("Image attachments aren't supported by the current model. Text and code files work fine.");
+        continue;
       }
+
+      const reader = new FileReader();
+      const text = await new Promise<string>((resolve) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.readAsText(file);
+      });
+      newAttachments.push({
+        name: file.name,
+        type: file.type,
+        content: text,
+      });
     }
 
     setAttachments((prev) => [...prev, ...newAttachments]);
@@ -170,7 +162,7 @@ export default function ChatInput({ onSend, isLoading, onStop, webSearch, onTogg
             multiple
             onChange={handleFileSelect}
             className="hidden"
-            accept="image/*,.txt,.md,.json,.csv,.xml,.html,.css,.js,.ts,.tsx,.jsx,.py,.java,.cpp,.c,.rb,.go,.rs,.php,.sql,.yaml,.yml,.toml,.ini,.log,.pdf,.doc,.docx"
+            accept=".txt,.md,.json,.csv,.xml,.html,.css,.js,.ts,.tsx,.jsx,.py,.java,.cpp,.c,.rb,.go,.rs,.php,.sql,.yaml,.yml,.toml,.ini,.log,.pdf,.doc,.docx"
           />
           <button
             onClick={() => fileInputRef.current?.click()}

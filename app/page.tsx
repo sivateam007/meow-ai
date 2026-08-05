@@ -26,6 +26,7 @@ export default function Home() {
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
   const [settings, setSettings] = useState<SettingsType>(DEFAULT_SETTINGS);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [liveMode, setLiveMode] = useState(false);
@@ -82,8 +83,9 @@ export default function Home() {
     saveSettings(updated);
   };
 
-  const streamResponse = async (conv: Conversation, msgs: Message[], title: string) => {
+  const streamResponse = async (conv: Conversation, msgs: Message[], title: string, isRegenerate = false) => {
     setIsLoading(true);
+    if (settings.webSearch) setIsSearching(true);
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -138,6 +140,7 @@ export default function Home() {
             try {
               const parsed = JSON.parse(data);
               if (parsed.content) {
+                setIsSearching(false);
                 assistantContent += parsed.content;
                 assistantMessage.content = assistantContent;
                 setActiveConv((prev) => {
@@ -172,10 +175,32 @@ export default function Home() {
       setActiveConv(finalConv);
       refreshConversations();
     } catch (error: unknown) {
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted) {
+        const hasPartial = assistantContent.trim().length > 0;
+        if (hasPartial || !isRegenerate) {
+          const persistedMessages = hasPartial
+            ? [...msgs, { ...assistantMessage, content: assistantContent }]
+            : msgs;
+          setActiveConv({ ...conv, title, messages: persistedMessages, updatedAt: Date.now() });
+          await updateConversationAPI(conv.id, {
+            messages: persistedMessages.map((m) => ({
+              role: m.role,
+              content: m.content,
+              timestamp: m.timestamp,
+              ...(m.attachments ? { attachments: m.attachments } : {}),
+            })),
+          });
+          refreshConversations();
+        }
+        return;
+      }
+      let errorText = "Sorry, something went wrong. Please try again later.";
+      if (error instanceof Error) {
+        errorText = error.message || errorText;
+      }
       const errorMessage: Message = {
         role: "assistant",
-        content: `Sorry, something went wrong. Please try again later.`,
+        content: errorText,
         timestamp: Date.now(),
       };
       const errorConv = {
@@ -193,6 +218,7 @@ export default function Home() {
       });
     } finally {
       abortRef.current = null;
+      setIsSearching(false);
       setIsLoading(false);
     }
   };
@@ -227,7 +253,7 @@ export default function Home() {
     const lastIdx = msgs.length - 1;
     if (lastIdx < 0 || msgs[lastIdx].role !== "assistant") return;
     const previousMessages = msgs.slice(0, lastIdx);
-    await streamResponse(activeConv, previousMessages, activeConv.title);
+    await streamResponse(activeConv, previousMessages, activeConv.title, true);
   };
 
   const handleStop = () => {
@@ -265,6 +291,7 @@ export default function Home() {
         messages={activeConv?.messages || []}
         onSend={handleSend}
         isLoading={isLoading}
+        isSearching={isSearching}
         onStop={handleStop}
         onRegenerate={handleRegenerate}
         onOpenSidebar={() => setSidebarOpen(true)}

@@ -9,6 +9,7 @@ interface ChatWindowProps {
   messages: Message[];
   onSend: (content: string, attachments?: FileAttachment[]) => void;
   isLoading: boolean;
+  isSearching: boolean;
   onStop: () => void;
   onRegenerate: () => void;
   onOpenSidebar: () => void;
@@ -23,6 +24,7 @@ export default function ChatWindow({
   messages,
   onSend,
   isLoading,
+  isSearching,
   onStop,
   onRegenerate,
   onOpenSidebar,
@@ -138,10 +140,15 @@ export default function ChatWindow({
                           </div>
                           <span className="text-xs font-semibold text-[#a78bfa]">Meow AI</span>
                         </div>
-                        <div className="flex gap-1.5 py-1">
-                          <div className="w-2 h-2 rounded-full bg-[#a78bfa] animate-bounce" style={{ animationDelay: "0ms" }} />
-                          <div className="w-2 h-2 rounded-full bg-[#a78bfa] animate-bounce" style={{ animationDelay: "150ms" }} />
-                          <div className="w-2 h-2 rounded-full bg-[#a78bfa] animate-bounce" style={{ animationDelay: "300ms" }} />
+                        <div className="flex items-center gap-2">
+                          <div className="flex gap-1.5">
+                            <div className="w-2 h-2 rounded-full bg-[#a78bfa] animate-bounce" style={{ animationDelay: "0ms" }} />
+                            <div className="w-2 h-2 rounded-full bg-[#a78bfa] animate-bounce" style={{ animationDelay: "150ms" }} />
+                            <div className="w-2 h-2 rounded-full bg-[#a78bfa] animate-bounce" style={{ animationDelay: "300ms" }} />
+                          </div>
+                          {isSearching && (
+                            <span className="text-xs text-gray-400">Searching the web…</span>
+                          )}
                         </div>
                       </div>
                     </div>

@@ -22,8 +22,9 @@ export async function POST(request: NextRequest) {
 
     const { messages, settings } = await request.json();
 
-    const apiKey = process.env.OPENCODE_API_KEY;
-    if (!apiKey || apiKey === "your-api-key-here") {
+    const apiKey = process.env.MEOW_AI_API_KEY;
+    const apiUrl = process.env.MEOW_AI_API_URL;
+    if (!apiKey || apiKey === "your-api-key-here" || !apiUrl) {
       return new Response(
         JSON.stringify({ error: "Service is not configured yet. Please contact support." }),
         { status: 500, headers: { "Content-Type": "application/json" } }
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const response = await fetch("https://opencode.ai/zen/v1/chat/completions", {
+    const response = await fetch(apiUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

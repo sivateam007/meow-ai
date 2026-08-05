@@ -37,7 +37,8 @@ AUTH_GOOGLE_ID=
 AUTH_GOOGLE_SECRET=
 AUTH_SECRET=
 DATABASE_URL=
-OPENCODE_API_KEY=
+MEOW_AI_API_KEY=
+MEOW_AI_API_URL=
 MEOW_AI_ADMIN_EMAILS=   # comma-separated admin emails (required to access /admin)
 MEOW_AI_ALLOWED_EMAILS= # optional comma-separated allowlist; unset = invite-only via admin grants
 ```

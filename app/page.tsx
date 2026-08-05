@@ -125,38 +125,52 @@ export default function Home() {
 
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
+      let buffer = "";
+      let streamDone = false;
 
       if (reader) {
-        while (true) {
+        while (!streamDone) {
           const { done, value } = await reader.read();
           if (done) break;
 
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split("\n").filter((l) => l.startsWith("data: "));
+          buffer += decoder.decode(value, { stream: true });
 
-          for (const line of lines) {
-            const data = line.slice(6);
-            if (data === "[DONE]") break;
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.content) {
-                setIsSearching(false);
-                assistantContent += parsed.content;
-                assistantMessage.content = assistantContent;
-                setActiveConv((prev) => {
-                  if (!prev) return prev;
-                  const ms = [...prev.messages];
-                  if (ms.length > 0 && ms[ms.length - 1].role === "assistant") {
-                    ms[ms.length - 1] = { ...assistantMessage };
-                  } else {
-                    ms.push({ ...assistantMessage });
-                  }
-                  return { ...prev, messages: ms, updatedAt: Date.now() };
-                });
+          let boundary = buffer.indexOf("\n\n");
+          while (boundary !== -1) {
+            const event = buffer.slice(0, boundary);
+            buffer = buffer.slice(boundary + 2);
+
+            for (const line of event.split("\n").filter((l) => l.trim() !== "")) {
+              if (!line.startsWith("data:")) continue;
+              const data = line.slice(5).trim();
+              if (data === "[DONE]") {
+                streamDone = true;
+                break;
               }
-            } catch {
-              // skip
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.content) {
+                  setIsSearching(false);
+                  assistantContent += parsed.content;
+                  assistantMessage.content = assistantContent;
+                  setActiveConv((prev) => {
+                    if (!prev) return prev;
+                    const ms = [...prev.messages];
+                    if (ms.length > 0 && ms[ms.length - 1].role === "assistant") {
+                      ms[ms.length - 1] = { ...assistantMessage };
+                    } else {
+                      ms.push({ ...assistantMessage });
+                    }
+                    return { ...prev, messages: ms, updatedAt: Date.now() };
+                  });
+                }
+              } catch {
+                // skip
+              }
             }
+
+            if (streamDone) break;
+            boundary = buffer.indexOf("\n\n");
           }
         }
       }

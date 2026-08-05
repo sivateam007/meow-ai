@@ -85,6 +85,7 @@ export async function POST(request: NextRequest) {
 
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
+    let buffer = "";
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -94,35 +95,47 @@ export async function POST(request: NextRequest) {
           return;
         }
 
+        const processEvent = (event: string) => {
+          const lines = event.split("\n").filter((l) => l.trim() !== "");
+          for (const line of lines) {
+            if (!line.startsWith("data:")) continue;
+            const data = line.slice(5).trim();
+            if (data === "[DONE]") {
+              controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+              return true;
+            }
+            try {
+              const parsed = JSON.parse(data);
+              const content = parsed.choices?.[0]?.delta?.content;
+              if (content) {
+                controller.enqueue(
+                  encoder.encode(`data: ${JSON.stringify({ content })}\n\n`)
+                );
+              }
+            } catch {
+              // skip malformed chunks
+            }
+          }
+          return false;
+        };
+
         try {
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
 
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split("\n").filter((line) => line.trim() !== "");
+            buffer += decoder.decode(value, { stream: true });
 
-            for (const line of lines) {
-              if (line.startsWith("data: ")) {
-                const data = line.slice(6);
-                if (data === "[DONE]") {
-                  controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-                  break;
-                }
-                try {
-                  const parsed = JSON.parse(data);
-                  const content = parsed.choices?.[0]?.delta?.content;
-                  if (content) {
-                    controller.enqueue(
-                      encoder.encode(`data: ${JSON.stringify({ content })}\n\n`)
-                    );
-                  }
-                } catch {
-                  // skip malformed chunks
-                }
-              }
+            let boundary = buffer.indexOf("\n\n");
+            while (boundary !== -1) {
+              const event = buffer.slice(0, boundary);
+              buffer = buffer.slice(boundary + 2);
+              if (processEvent(event)) break;
+              boundary = buffer.indexOf("\n\n");
             }
           }
+          buffer += decoder.decode();
+          if (buffer.trim() !== "") processEvent(buffer);
         } catch (err) {
           controller.error(err);
         } finally {

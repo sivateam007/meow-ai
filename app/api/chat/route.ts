@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { webSearch, formatSearchResults } from "@/lib/search";
 import { rateLimit } from "@/lib/ratelimit";
+import { isAdmin } from "@/lib/admin";
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,7 +14,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!rateLimit(`chat:${session.user.email.toLowerCase()}`)) {
+    const admin = await isAdmin(session.user.email);
+    if (!admin && !rateLimit(`chat:${session.user.email.toLowerCase()}`)) {
       return new Response(
         JSON.stringify({ error: "Too many requests. Please wait and try again later." }),
         { status: 429, headers: { "Content-Type": "application/json" } }

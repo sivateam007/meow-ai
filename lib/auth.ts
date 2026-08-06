@@ -21,31 +21,54 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (!user.email) return false;
       const email = user.email.toLowerCase();
 
+      console.log(
+        "[auth] signIn email=",
+        email,
+        "adminEnv=",
+        process.env.MEOW_AI_ADMIN_EMAILS ? "set" : "MISSING",
+        "allowedEnv=",
+        process.env.MEOW_AI_ALLOWED_EMAILS ? "set" : "MISSING"
+      );
+
       if (isAdminEmail(email)) return true;
 
       if (isAllowedEmail(email)) {
-        await db.appUser.upsert({
-          where: { email },
-          update: { lastSeenAt: new Date(), name: user.name ?? undefined },
-          create: {
-            email,
-            name: user.name,
-            status: "active",
-            grantedAt: new Date(),
-            lastSeenAt: new Date(),
-          },
-        });
+        try {
+          await db.appUser.upsert({
+            where: { email },
+            update: { lastSeenAt: new Date(), name: user.name ?? undefined },
+            create: {
+              email,
+              name: user.name,
+              status: "active",
+              grantedAt: new Date(),
+              lastSeenAt: new Date(),
+            },
+          });
+        } catch (e) {
+          console.error("[auth] upsert failed for", email, e);
+          return false;
+        }
         return true;
       }
 
-      const existing = await db.appUser.findUnique({ where: { email } });
-
-      if (existing?.status === "active") {
-        await db.appUser.update({
-          where: { email },
-          data: { lastSeenAt: new Date(), name: user.name ?? undefined },
-        });
-        return true;
+      try {
+        const existing = await db.appUser.findUnique({ where: { email } });
+        console.log(
+          "[auth] signIn db result for",
+          email,
+          existing ? `status=${existing.status}` : "NOT_FOUND"
+        );
+        if (existing?.status === "active") {
+          await db.appUser.update({
+            where: { email },
+            data: { lastSeenAt: new Date(), name: user.name ?? undefined },
+          });
+          return true;
+        }
+      } catch (e) {
+        console.error("[auth] signIn db error for", email, e);
+        return false;
       }
 
       return false;

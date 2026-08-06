@@ -66,6 +66,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           });
           return true;
         }
+
+        if (existing?.status === "revoked") {
+          return false;
+        }
+
+        await db.appUser.upsert({
+          where: { email },
+          update: { status: "pending", name: user.name ?? undefined },
+          create: {
+            email,
+            name: user.name,
+            status: "pending",
+            requestedAt: new Date(),
+          },
+        });
+        console.log("[auth] auto-requested pending access for", email);
       } catch (e) {
         console.error("[auth] signIn db error for", email, e);
         return false;

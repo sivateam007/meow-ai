@@ -96,6 +96,23 @@ export default function Home() {
     saveSettings(updated);
   };
 
+  const handleExport = useCallback((id: string) => {
+    const conv = conversations.find((c) => c.id === id);
+    if (!conv) return;
+    let md = `# ${conv.title}\n\n`;
+    for (const msg of conv.messages) {
+      const role = msg.role === "user" ? "You" : msg.role === "assistant" ? "Meow AI" : msg.role;
+      md += `## ${role}\n\n${msg.content}\n\n---\n\n`;
+    }
+    const blob = new Blob([md], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${conv.title.replace(/[^a-zA-Z0-9]/g, "_")}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [conversations]);
+
   const streamResponse = async (conv: Conversation, msgs: Message[], title: string, isRegenerate = false) => {
     setIsLoading(true);
     if (settings.webSearch) setIsSearching(true);
@@ -193,6 +210,9 @@ export default function Home() {
                 const parsed = JSON.parse(data);
                 if (parsed.usage) {
                   usage = parsed.usage;
+                  continue;
+                }
+                if (parsed.model) {
                   continue;
                 }
                 if (parsed.thinking) {
@@ -349,6 +369,7 @@ export default function Home() {
         onSelect={handleSelectChat}
         onNew={handleNewChat}
         onDelete={handleDeleteChat}
+        onExport={handleExport}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />

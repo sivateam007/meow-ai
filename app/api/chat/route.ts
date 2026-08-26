@@ -21,7 +21,8 @@ interface ApiMessage {
 const CONTEXT_CHAR_BUDGET = 24000;
 const ATTACHMENT_CHAR_CAP = 8000;
 const SEARCH_CONTEXT_CAP = 2000;
-const MAX_FALLBACK_RETRIES = 3;
+const MAX_FALLBACK_RETRIES = 4;
+const FALLBACK_DELAY_MS = 300;
 
 const FALLBACK_MODELS = [
   "big-pickle",
@@ -31,12 +32,33 @@ const FALLBACK_MODELS = [
   "nemotron-3.5-lightning-free",
   "deepseek-v4-flash-free",
   "laguna-s-2.1-free",
+  "muse-spark-1.2-contributor-free",
 ];
 
 const RESPONSES_ENDPOINT_MODELS = new Set(["muse-spark-1.2-contributor-free"]);
 
+const modelBlacklist = new Map<string, number>();
+
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
+}
+
+function isModelBlacklisted(modelId: string): boolean {
+  const until = modelBlacklist.get(modelId);
+  if (!until) return false;
+  if (Date.now() > until) {
+    modelBlacklist.delete(modelId);
+    return false;
+  }
+  return true;
+}
+
+function blacklistModel(modelId: string, seconds: number): void {
+  const until = Date.now() + seconds * 1000;
+  const existing = modelBlacklist.get(modelId);
+  if (!existing || until > existing) {
+    modelBlacklist.set(modelId, until);
+  }
 }
 
 function friendlyError(rawMessage: string, status: number): string {
@@ -46,16 +68,12 @@ function friendlyError(rawMessage: string, status: number): string {
     return "API key issue — please check that MEOW_AI_API_KEY is set correctly on Render.";
   }
 
-  if (status === 404 || /model.*(not found|unavailable|not supported)/i.test(m)) {
-    return "Model temporarily unavailable. Trying another model...";
-  }
-
   if (status === 429 || /rate.?limit|too many request/.test(m)) {
-    return "Rate limited. Trying another model...";
+    return "Rate limited. Please try again in a moment.";
   }
 
   if (status >= 500) {
-    return "Provider error. Trying another model...";
+    return "Provider error. Please try again.";
   }
 
   return rawMessage;
@@ -70,17 +88,8 @@ function isRetryable(status: number, message: string): boolean {
   return false;
 }
 
-/**
- * Builds the upstream message array:
- * - Injects attachment contents ONLY for the newest user message;
- *   older attachments collapse to lightweight "[file attached earlier]" references.
- * - Windows history to CONTEXT_CHAR_BUDGET chars (newest-first), so long chats
- *   stop growing token cost quadratically.
- * - Prepends the system prompt.
- */
 function buildApiMessages(messages: ApiMessage[]): {
   finalMessages: { role: string; content: string }[];
-  inputChars: number;
 } {
   const nonSystem = messages.filter((m) => m.role !== "system");
 
@@ -123,8 +132,7 @@ function buildApiMessages(messages: ApiMessage[]): {
   }
 
   const finalMessages = [{ role: "system", content: SYSTEM_PROMPT }, ...kept];
-  const inputChars = finalMessages.reduce((sum, m) => sum + m.content.length, 0);
-  return { finalMessages, inputChars };
+  return { finalMessages };
 }
 
 function buildUpstreamBody(
@@ -190,10 +198,16 @@ async function tryFetchModel(
     } catch {
       // ignore
     }
+    if (response.status === 429) blacklistModel(modelId, 60);
+    else if (response.status >= 500 || /unavailable|not found/i.test(message)) blacklistModel(modelId, 30);
     return { error: message, status: response.status };
   }
 
   return { response, modelId };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export async function POST(request: NextRequest) {
@@ -251,7 +265,10 @@ export async function POST(request: NextRequest) {
     const maxTokens = settings?.maxTokens ?? 2048;
     const requestedModel = settings?.model || "big-pickle";
 
-    const modelOrder = [requestedModel, ...FALLBACK_MODELS.filter((m) => m !== requestedModel)];
+    const modelOrder = [
+      requestedModel,
+      ...FALLBACK_MODELS.filter((m) => m !== requestedModel),
+    ];
 
     let lastError = "";
     let lastStatus = 500;
@@ -260,7 +277,12 @@ export async function POST(request: NextRequest) {
 
     for (let attempt = 0; attempt < Math.min(modelOrder.length, MAX_FALLBACK_RETRIES + 1); attempt++) {
       const model = modelOrder[attempt];
+
+      if (isModelBlacklisted(model)) continue;
+
       usedModel = model;
+
+      if (attempt > 0) await sleep(FALLBACK_DELAY_MS);
 
       const result = await tryFetchModel(model, apiKey, finalMessages, temperature, maxTokens);
 
@@ -299,6 +321,10 @@ export async function POST(request: NextRequest) {
           controller.close();
           return;
         }
+
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify({ model: usedModel })}\n\n`)
+        );
 
         const processEvent = (event: string) => {
           const lines = event.split("\n").filter((l) => l.trim() !== "");
@@ -403,15 +429,13 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    const response = new Response(stream, {
+    return new Response(stream, {
       headers: {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
         Connection: "keep-alive",
       },
     });
-
-    return response;
   } catch {
     return new Response(
       JSON.stringify({ error: "Internal server error" }),

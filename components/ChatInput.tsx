@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, KeyboardEvent, ChangeEvent } from "react";
+import { useState, useRef, useEffect, KeyboardEvent, ChangeEvent } from "react";
 import { FileAttachment } from "@/lib/types";
 
 interface ChatInputProps {
@@ -35,6 +35,12 @@ export default function ChatInput({ onSend, isLoading, onStop, webSearch, onTogg
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+    }
+  };
+
+  const handleGlobalKeyDown = (e: globalThis.KeyboardEvent) => {
+    if (e.key === "Escape" && isLoading) {
+      onStop();
     }
   };
 
@@ -127,6 +133,11 @@ export default function ChatInput({ onSend, isLoading, onStop, webSearch, onTogg
   };
 
   const canSend = (message.trim() || attachments.length > 0) && !isLoading;
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, [isLoading, onStop]);
 
   return (
     <div className="border-t border-[#3b3558] bg-[#13111c]/80 backdrop-blur-sm p-2 sm:p-4">

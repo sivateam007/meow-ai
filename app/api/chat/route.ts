@@ -465,13 +465,6 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    if (ck && fullText.length > 10) {
-      const streamForCache = new Response(stream.clone().body, {
-        headers: { "Content-Type": "text/event-stream" },
-      });
-      streamForCache.text().then((t) => setCache(ck, t)).catch(() => {});
-    }
-
     return response;
   } catch {
     return new Response(

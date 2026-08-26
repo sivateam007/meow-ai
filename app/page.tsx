@@ -195,6 +195,10 @@ export default function Home() {
                   usage = parsed.usage;
                   continue;
                 }
+                if (parsed.thinking) {
+                  setIsSearching(false);
+                  continue;
+                }
                 if (parsed.content) {
                   setIsSearching(false);
                   assistantContent += parsed.content;

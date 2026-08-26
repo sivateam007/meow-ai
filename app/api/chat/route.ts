@@ -21,6 +21,19 @@ interface ApiMessage {
 const CONTEXT_CHAR_BUDGET = 24000;
 const ATTACHMENT_CHAR_CAP = 8000;
 const SEARCH_CONTEXT_CAP = 2000;
+const MAX_FALLBACK_RETRIES = 3;
+
+const FALLBACK_MODELS = [
+  "big-pickle",
+  "hy3-free",
+  "mimo-v2.5-free",
+  "nemotron-3-ultra-free",
+  "nemotron-3.5-lightning-free",
+  "deepseek-v4-flash-free",
+  "laguna-s-2.1-free",
+];
+
+const RESPONSES_ENDPOINT_MODELS = new Set(["muse-spark-1.2-contributor-free"]);
 
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
@@ -34,19 +47,63 @@ function friendlyError(rawMessage: string, status: number): string {
   }
 
   if (status === 404 || /model.*(not found|unavailable|not supported)/i.test(m)) {
-    const modelHint = rawMessage.length > 120 ? rawMessage.substring(0, 120) + "..." : rawMessage;
-    return `Model error: ${modelHint}`;
+    return "Model temporarily unavailable. Trying another model...";
   }
 
   if (status === 429 || /rate.?limit|too many request/.test(m)) {
-    return "Rate limited by provider. Please wait a moment and try again.";
+    return "Rate limited. Trying another model...";
   }
 
   if (status >= 500) {
-    return `Provider error (${status}): ${rawMessage.substring(0, 150)}`;
+    return "Provider error. Trying another model...";
   }
 
   return rawMessage;
+}
+
+function isRetryable(status: number, message: string): boolean {
+  if (status === 429) return true;
+  if (status === 404) return true;
+  if (status >= 500) return true;
+  const m = (message || "").toLowerCase();
+  if (/rate.?limit|unavailable|not found|not supported|too many/i.test(m)) return true;
+  return false;
+}
+
+/**
+ * Simple in-memory cache for recent responses.
+ * Key: modelId + last user message hash → cached SSE output.
+ * TTL: 5 minutes. Max 200 entries.
+ */
+const responseCache = new Map<string, { data: string; ts: number }>();
+const CACHE_TTL = 5 * 60 * 1000;
+const CACHE_MAX = 200;
+
+function cacheKey(modelId: string, lastUserMsg: string): string {
+  let hash = 0;
+  const s = modelId + lastUserMsg.substring(0, 500);
+  for (let i = 0; i < s.length; i++) {
+    hash = ((hash << 5) - hash + s.charCodeAt(i)) | 0;
+  }
+  return String(hash);
+}
+
+function getCached(key: string): string | null {
+  const entry = responseCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > CACHE_TTL) {
+    responseCache.delete(key);
+    return null;
+  }
+  return entry.data;
+}
+
+function setCache(key: string, data: string): void {
+  if (responseCache.size >= CACHE_MAX) {
+    const oldest = responseCache.keys().next().value;
+    if (oldest !== undefined) responseCache.delete(oldest);
+  }
+  responseCache.set(key, { data, ts: Date.now() });
 }
 
 /**
@@ -106,6 +163,75 @@ function buildApiMessages(messages: ApiMessage[]): {
   return { finalMessages, inputChars };
 }
 
+function buildUpstreamBody(
+  modelId: string,
+  finalMessages: { role: string; content: string }[],
+  temperature: number,
+  maxTokens: number
+): { url: string; body: Record<string, unknown> } {
+  const isResponses = RESPONSES_ENDPOINT_MODELS.has(modelId);
+
+  if (isResponses) {
+    const systemMsg = finalMessages.find((m) => m.role === "system");
+    const userMsgs = finalMessages.filter((m) => m.role === "user");
+    const lastUserContent = userMsgs.length > 0 ? userMsgs[userMsgs.length - 1].content : "";
+    return {
+      url: process.env.MEOW_AI_API_URL!.replace("/chat/completions", "/responses"),
+      body: {
+        model: modelId,
+        instructions: systemMsg?.content || "",
+        input: lastUserContent,
+        stream: true,
+      },
+    };
+  }
+
+  return {
+    url: process.env.MEOW_AI_API_URL!,
+    body: {
+      model: modelId,
+      messages: finalMessages,
+      temperature,
+      max_tokens: maxTokens,
+      stream: true,
+    },
+  };
+}
+
+async function tryFetchModel(
+  modelId: string,
+  apiKey: string,
+  finalMessages: { role: string; content: string }[],
+  temperature: number,
+  maxTokens: number
+): Promise<{ response: Response; modelId: string } | { error: string; status: number }> {
+  const { url, body } = buildUpstreamBody(modelId, finalMessages, temperature, maxTokens);
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    let message = "Something went wrong.";
+    try {
+      const errBody = await response.json();
+      if (errBody?.error?.message) message = errBody.error.message;
+      else if (typeof errBody?.error === "string") message = errBody.error;
+      else if (errBody?.message) message = errBody.message;
+    } catch {
+      // ignore
+    }
+    return { error: message, status: response.status };
+  }
+
+  return { response, modelId };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await auth();
@@ -157,70 +283,70 @@ export async function POST(request: NextRequest) {
     }
 
     const { finalMessages, inputChars } = buildApiMessages(workingMessages);
+    const temperature = settings?.temperature ?? 0.7;
+    const maxTokens = settings?.maxTokens ?? 2048;
+    const requestedModel = settings?.model || "big-pickle";
 
-    const modelId = settings?.model || "big-pickle";
-    const isMuseSpark = modelId === "muse-spark-1.2-contributor-free";
-
-    let upstreamUrl = apiUrl;
-    let upstreamBody: Record<string, unknown>;
-
-    if (isMuseSpark) {
-      upstreamUrl = apiUrl.replace("/chat/completions", "/responses");
-      const systemMsg = finalMessages.find((m: ApiMessage) => m.role === "system");
-      const userMsgs = finalMessages.filter((m: ApiMessage) => m.role === "user");
-      const lastUserContent = userMsgs.length > 0 ? userMsgs[userMsgs.length - 1].content : "";
-      upstreamBody = {
-        model: modelId,
-        instructions: systemMsg?.content || "",
-        input: lastUserContent,
-        stream: true,
-      };
-    } else {
-      upstreamBody = {
-        model: modelId,
-        messages: finalMessages,
-        temperature: settings?.temperature ?? 0.7,
-        max_tokens: settings?.maxTokens ?? 2048,
-        stream: true,
-      };
+    const lastUserMsg = [...workingMessages].reverse().find((m: ApiMessage) => m.role === "user");
+    const ck = lastUserMsg ? cacheKey(requestedModel, lastUserMsg.content) : null;
+    if (ck) {
+      const cached = getCached(ck);
+      if (cached) {
+        return new Response(cached, {
+          headers: {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            Connection: "keep-alive",
+          },
+        });
+      }
     }
 
-    const response = await fetch(upstreamUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(upstreamBody),
-    });
+    const modelOrder = [requestedModel, ...FALLBACK_MODELS.filter((m) => m !== requestedModel)];
 
-    if (!response.ok) {
-      let message = "Something went wrong. Please try again later.";
-      try {
-        const errBody = await response.json();
-        if (errBody?.error?.message) message = errBody.error.message;
-        else if (typeof errBody?.error === "string") message = errBody.error;
-        else if (errBody?.message) message = errBody.message;
-      } catch {
-        // ignore unparsable error bodies
+    let lastError = "";
+    let lastStatus = 500;
+    let successResponse: Response | null = null;
+    let usedModel = requestedModel;
+
+    for (let attempt = 0; attempt < Math.min(modelOrder.length, MAX_FALLBACK_RETRIES + 1); attempt++) {
+      const model = modelOrder[attempt];
+      usedModel = model;
+
+      const result = await tryFetchModel(model, apiKey, finalMessages, temperature, maxTokens);
+
+      if ("response" in result) {
+        successResponse = result.response;
+        break;
       }
-      message = friendlyError(message, response.status);
-      if (message.length > 300) message = message.substring(0, 300) + "...";
+
+      lastError = result.error;
+      lastStatus = result.status;
+
+      if (!isRetryable(result.status, result.error)) {
+        break;
+      }
+    }
+
+    if (!successResponse) {
+      const msg = friendlyError(lastError, lastStatus);
       return new Response(
-        JSON.stringify({ error: message }),
-        { status: response.status, headers: { "Content-Type": "application/json" } }
+        JSON.stringify({ error: msg }),
+        { status: lastStatus, headers: { "Content-Type": "application/json" } }
       );
     }
 
+    const isMuseSpark = RESPONSES_ENDPOINT_MODELS.has(usedModel);
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
     let buffer = "";
     let completionChars = 0;
     let upstreamUsage: { promptTokens?: number; completionTokens?: number } | null = null;
+    let fullText = "";
 
     const stream = new ReadableStream({
       async start(controller) {
-        const reader = response.body?.getReader();
+        const reader = successResponse!.body?.getReader();
         if (!reader) {
           controller.close();
           return;
@@ -263,6 +389,7 @@ export async function POST(request: NextRequest) {
               if (isMuseSpark) {
                 if (parsed.type === "response.output_text.delta" && parsed.delta) {
                   completionChars += parsed.delta.length;
+                  fullText += parsed.delta;
                   controller.enqueue(
                     encoder.encode(`data: ${JSON.stringify({ content: parsed.delta })}\n\n`)
                   );
@@ -283,9 +410,16 @@ export async function POST(request: NextRequest) {
                   return true;
                 }
               } else {
+                const reasoning = parsed.choices?.[0]?.delta?.reasoning_content;
+                if (reasoning) {
+                  controller.enqueue(
+                    encoder.encode(`data: ${JSON.stringify({ thinking: reasoning })}\n\n`)
+                  );
+                }
                 const content = parsed.choices?.[0]?.delta?.content;
                 if (content) {
                   completionChars += content.length;
+                  fullText += content;
                   controller.enqueue(
                     encoder.encode(`data: ${JSON.stringify({ content })}\n\n`)
                   );
@@ -323,13 +457,22 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return new Response(stream, {
+    const response = new Response(stream, {
       headers: {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
         Connection: "keep-alive",
       },
     });
+
+    if (ck && fullText.length > 10) {
+      const streamForCache = new Response(stream.clone().body, {
+        headers: { "Content-Type": "text/event-stream" },
+      });
+      streamForCache.text().then((t) => setCache(ck, t)).catch(() => {});
+    }
+
+    return response;
   } catch {
     return new Response(
       JSON.stringify({ error: "Internal server error" }),

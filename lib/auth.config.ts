@@ -11,5 +11,4 @@ export const authConfig = {
       return !!auth;
     },
   },
-  trustHost: true,
 } satisfies NextAuthConfig;

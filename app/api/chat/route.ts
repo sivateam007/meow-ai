@@ -62,11 +62,11 @@ function blacklistModel(modelId: string, seconds: number): void {
 }
 
 function friendlyError(rawMessage: string, status: number): string {
-  const m = (rawMessage || "").toLowerCase();
-
-  if (status === 401 || status === 403 || /unauthorized|forbidden|invalid.*key|api.?key/.test(m)) {
-    return "API key issue — please check that MEOW_AI_API_KEY is set correctly on Render.";
+  if (status === 401 || status === 403) {
+    return "Authentication error. Please try again.";
   }
+
+  const m = (rawMessage || "").toLowerCase();
 
   if (status === 429 || /rate.?limit|too many request/.test(m)) {
     return "Rate limited. Please try again in a moment.";
@@ -76,7 +76,7 @@ function friendlyError(rawMessage: string, status: number): string {
     return "Provider error. Please try again.";
   }
 
-  return rawMessage;
+  return "An error occurred. Please try again.";
 }
 
 function isRetryable(status: number, message: string): boolean {
@@ -230,6 +230,13 @@ export async function POST(request: NextRequest) {
 
     const { messages, settings } = await request.json();
 
+    if (!Array.isArray(messages) || messages.length === 0 || messages.length > 100) {
+      return new Response(
+        JSON.stringify({ error: "Invalid messages" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
     const apiKey = process.env.MEOW_AI_API_KEY;
     const apiUrl = process.env.MEOW_AI_API_URL;
     if (!apiKey || apiKey === "your-api-key-here" || !apiUrl) {
@@ -239,7 +246,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let workingMessages: ApiMessage[] = Array.isArray(messages) ? messages : [];
+    let workingMessages: ApiMessage[] = messages;
 
     if (settings?.webSearch) {
       const lastUserMsg = [...workingMessages].reverse().find((m: ApiMessage) => m.role === "user");
@@ -261,9 +268,17 @@ export async function POST(request: NextRequest) {
     }
 
     const { finalMessages } = buildApiMessages(workingMessages);
-    const temperature = settings?.temperature ?? 0.7;
-    const maxTokens = settings?.maxTokens ?? 2048;
+    const temperature = Math.min(2, Math.max(0, settings?.temperature ?? 0.7));
+    const maxTokens = Math.min(8192, Math.max(1, settings?.maxTokens ?? 2048));
     const requestedModel = settings?.model || "big-pickle";
+
+    const allowedModels = new Set(FALLBACK_MODELS);
+    if (!allowedModels.has(requestedModel)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid model" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
 
     const modelOrder = [
       requestedModel,

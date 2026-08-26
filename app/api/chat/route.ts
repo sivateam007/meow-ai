@@ -26,21 +26,27 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
-function friendlyError(message: string, status: number): string {
-  const m = (message || "").toLowerCase();
-  if (
-    status === 429 ||
-    /quota|limit.*(exceed|reach)|exceed.*limit|rate.?limit|too many request|insufficient/.test(m)
-  ) {
-    return "Meow AI is very busy right now (provider limit reached). Please try again in a little while.";
+function friendlyError(rawMessage: string, status: number): string {
+  const m = (rawMessage || "").toLowerCase();
+
+  if (status === 401 || status === 403 || /unauthorized|forbidden|invalid.*key|api.?key/.test(m)) {
+    return "API key issue — please check that MEOW_AI_API_KEY is set correctly on Render.";
   }
-  if (/billing|credit|balance|payment/.test(m)) {
-    return "Meow AI's provider account needs attention. Please try again later.";
+
+  if (status === 404 || /model.*(not found|unavailable|not supported)/i.test(m)) {
+    const modelHint = rawMessage.length > 120 ? rawMessage.substring(0, 120) + "..." : rawMessage;
+    return `Model error: ${modelHint}`;
   }
+
+  if (status === 429 || /rate.?limit|too many request/.test(m)) {
+    return "Rate limited by provider. Please wait a moment and try again.";
+  }
+
   if (status >= 500) {
-    return "Meow AI's brain hiccuped (provider error). Please try again.";
+    return `Provider error (${status}): ${rawMessage.substring(0, 150)}`;
   }
-  return message;
+
+  return rawMessage;
 }
 
 /**
@@ -152,19 +158,40 @@ export async function POST(request: NextRequest) {
 
     const { finalMessages, inputChars } = buildApiMessages(workingMessages);
 
-    const response = await fetch(apiUrl, {
+    const modelId = settings?.model || "big-pickle";
+    const isMuseSpark = modelId === "muse-spark-1.2-contributor-free";
+
+    let upstreamUrl = apiUrl;
+    let upstreamBody: Record<string, unknown>;
+
+    if (isMuseSpark) {
+      upstreamUrl = apiUrl.replace("/chat/completions", "/responses");
+      const systemMsg = finalMessages.find((m: ApiMessage) => m.role === "system");
+      const userMsgs = finalMessages.filter((m: ApiMessage) => m.role === "user");
+      const lastUserContent = userMsgs.length > 0 ? userMsgs[userMsgs.length - 1].content : "";
+      upstreamBody = {
+        model: modelId,
+        instructions: systemMsg?.content || "",
+        input: lastUserContent,
+        stream: true,
+      };
+    } else {
+      upstreamBody = {
+        model: modelId,
+        messages: finalMessages,
+        temperature: settings?.temperature ?? 0.7,
+        max_tokens: settings?.maxTokens ?? 2048,
+        stream: true,
+      };
+    }
+
+    const response = await fetch(upstreamUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({
-        model: settings?.model || "big-pickle",
-        messages: finalMessages,
-        temperature: settings?.temperature ?? 0.7,
-        max_tokens: settings?.maxTokens ?? 2048,
-        stream: true,
-      }),
+      body: JSON.stringify(upstreamBody),
     });
 
     if (!response.ok) {
@@ -233,12 +260,36 @@ export async function POST(request: NextRequest) {
                 };
                 continue;
               }
-              const content = parsed.choices?.[0]?.delta?.content;
-              if (content) {
-                completionChars += content.length;
-                controller.enqueue(
-                  encoder.encode(`data: ${JSON.stringify({ content })}\n\n`)
-                );
+              if (isMuseSpark) {
+                if (parsed.type === "response.output_text.delta" && parsed.delta) {
+                  completionChars += parsed.delta.length;
+                  controller.enqueue(
+                    encoder.encode(`data: ${JSON.stringify({ content: parsed.delta })}\n\n`)
+                  );
+                }
+                if (parsed.type === "response.completed" || parsed.type === "response.done") {
+                  const promptTokens =
+                    upstreamUsage?.promptTokens ?? estimateTokens(
+                      finalMessages.reduce((s: string, m: ApiMessage) => s + m.content.length, "")
+                    );
+                  const completionTokens =
+                    upstreamUsage?.completionTokens ?? estimateTokens(String(completionChars));
+                  controller.enqueue(
+                    encoder.encode(
+                      `data: ${JSON.stringify({ usage: { promptTokens, completionTokens } })}\n\n`
+                    )
+                  );
+                  controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+                  return true;
+                }
+              } else {
+                const content = parsed.choices?.[0]?.delta?.content;
+                if (content) {
+                  completionChars += content.length;
+                  controller.enqueue(
+                    encoder.encode(`data: ${JSON.stringify({ content })}\n\n`)
+                  );
+                }
               }
             } catch {
               // skip malformed chunks

@@ -77,7 +77,7 @@ export async function PUT(
       }
       const validated = (body.messages as Record<string, unknown>[]).map((m) => ({
         conversationId: id,
-        role: VALID_ROLES.has(m.role as string) ? m.role : "user",
+        role: (VALID_ROLES.has(m.role as string) ? m.role : "user") as string,
         content: typeof m.content === "string" ? m.content.substring(0, MAX_CONTENT) : "",
         timestamp: typeof m.timestamp === "number" ? m.timestamp : Date.now(),
         attachments: m.attachments || undefined,

@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
         return new Response(JSON.stringify({ error: "Too many messages" }), { status: 400 });
       }
       messagesData = (body.messages as Record<string, unknown>[]).map((m) => ({
-        role: VALID_ROLES.has(m.role as string) ? m.role : "user",
+        role: (VALID_ROLES.has(m.role as string) ? m.role : "user") as string,
         content: typeof m.content === "string" ? m.content.substring(0, MAX_CONTENT) : "",
         timestamp: typeof m.timestamp === "number" ? m.timestamp : Date.now(),
         attachments: m.attachments || undefined,

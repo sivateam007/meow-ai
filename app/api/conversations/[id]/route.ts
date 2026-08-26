@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 
 const VALID_ROLES = new Set(["user", "assistant"]);
 const MAX_TITLE = 200;
@@ -75,12 +76,12 @@ export async function PUT(
       if (body.messages.length > MAX_MESSAGES) {
         return new Response(JSON.stringify({ error: "Too many messages" }), { status: 400 });
       }
-      const validated = (body.messages as Record<string, unknown>[]).map((m) => ({
+      const validated: Prisma.MessageUncheckedCreateWithoutConversationInput[] = (body.messages as Record<string, unknown>[]).map((m) => ({
         conversationId: id,
         role: (VALID_ROLES.has(m.role as string) ? m.role : "user") as string,
         content: typeof m.content === "string" ? m.content.substring(0, MAX_CONTENT) : "",
         timestamp: typeof m.timestamp === "number" ? m.timestamp : Date.now(),
-        attachments: m.attachments || undefined,
+        attachments: m.attachments as Prisma.InputJsonValue | undefined,
       }));
       await db.$transaction([
         db.message.deleteMany({ where: { conversationId: id } }),

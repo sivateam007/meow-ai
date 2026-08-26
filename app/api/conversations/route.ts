@@ -1,11 +1,21 @@
 import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 
 const VALID_ROLES = new Set(["user", "assistant"]);
 const MAX_TITLE = 200;
 const MAX_MESSAGES = 200;
 const MAX_CONTENT = 50000;
+
+function sanitizeMessages(raw: Record<string, unknown>[]): Prisma.MessageUncheckedCreateWithoutConversationInput[] {
+  return raw.map((m) => ({
+    role: (VALID_ROLES.has(m.role as string) ? m.role : "user") as string,
+    content: typeof m.content === "string" ? m.content.substring(0, MAX_CONTENT) : "",
+    timestamp: typeof m.timestamp === "number" ? m.timestamp : Date.now(),
+    attachments: m.attachments as Prisma.InputJsonValue | undefined,
+  }));
+}
 
 export async function GET() {
   try {
@@ -55,17 +65,12 @@ export async function POST(request: NextRequest) {
 
     const title = typeof body.title === "string" ? body.title.substring(0, MAX_TITLE) || "New Chat" : "New Chat";
 
-    let messagesData: unknown[] | undefined;
+    let messagesData: Prisma.MessageUncheckedCreateWithoutConversationInput[] | undefined;
     if (Array.isArray(body.messages)) {
       if (body.messages.length > MAX_MESSAGES) {
         return new Response(JSON.stringify({ error: "Too many messages" }), { status: 400 });
       }
-      messagesData = (body.messages as Record<string, unknown>[]).map((m) => ({
-        role: (VALID_ROLES.has(m.role as string) ? m.role : "user") as string,
-        content: typeof m.content === "string" ? m.content.substring(0, MAX_CONTENT) : "",
-        timestamp: typeof m.timestamp === "number" ? m.timestamp : Date.now(),
-        attachments: m.attachments || undefined,
-      }));
+      messagesData = sanitizeMessages(body.messages as Record<string, unknown>[]);
     }
 
     const conversation = await db.conversation.create({
@@ -73,9 +78,7 @@ export async function POST(request: NextRequest) {
         userEmail: session.user.email,
         title,
         messages: messagesData
-          ? {
-              create: messagesData as { role: string; content: string; timestamp: number; attachments?: unknown }[],
-            }
+          ? { create: messagesData }
           : undefined,
       },
       include: { messages: true },

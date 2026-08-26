@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
       if (body.messages.length > MAX_MESSAGES) {
         return new Response(JSON.stringify({ error: "Too many messages" }), { status: 400 });
       }
-      messagesData = body.messages.map((m: Record<string, unknown>) => ({
+      messagesData = (body.messages as Record<string, unknown>[]).map((m) => ({
         role: VALID_ROLES.has(m.role as string) ? m.role : "user",
         content: typeof m.content === "string" ? m.content.substring(0, MAX_CONTENT) : "",
         timestamp: typeof m.timestamp === "number" ? m.timestamp : Date.now(),

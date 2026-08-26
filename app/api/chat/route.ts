@@ -246,7 +246,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const { finalMessages, inputChars } = buildApiMessages(workingMessages);
+    const { finalMessages } = buildApiMessages(workingMessages);
     const temperature = settings?.temperature ?? 0.7;
     const maxTokens = settings?.maxTokens ?? 2048;
     const requestedModel = settings?.model || "big-pickle";

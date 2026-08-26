@@ -76,7 +76,7 @@ export async function PUT(
       if (body.messages.length > MAX_MESSAGES) {
         return new Response(JSON.stringify({ error: "Too many messages" }), { status: 400 });
       }
-      const validated: Prisma.MessageUncheckedCreateWithoutConversationInput[] = (body.messages as Record<string, unknown>[]).map((m) => ({
+      const validated: Prisma.MessageCreateManyInput[] = (body.messages as Record<string, unknown>[]).map((m) => ({
         conversationId: id,
         role: (VALID_ROLES.has(m.role as string) ? m.role : "user") as string,
         content: typeof m.content === "string" ? m.content.substring(0, MAX_CONTENT) : "",

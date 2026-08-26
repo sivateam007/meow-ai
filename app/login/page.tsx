@@ -1,8 +1,66 @@
 "use client";
 
 import { signIn } from "next-auth/react";
+import { useEffect, useState } from "react";
+
+declare global {
+  interface Window {
+    Capacitor?: {
+      isNativePlatform: () => boolean;
+      getPlatform: () => string;
+      Plugins?: {
+        GoogleAuth?: {
+          signIn: () => Promise<{ idToken: string }>;
+        };
+      };
+    };
+  }
+}
 
 export default function LoginPage() {
+  const [isNative, setIsNative] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const native = window.Capacitor?.isNativePlatform() === true;
+    setIsNative(native);
+  }, []);
+
+  const handleGoogleSignIn = async () => {
+    if (!isNative) {
+      signIn("google", { callbackUrl: "/" });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const GoogleAuth = window.Capacitor?.Plugins?.GoogleAuth;
+      if (!GoogleAuth) {
+        console.warn("GoogleAuth plugin not available, falling back to web flow");
+        signIn("google", { callbackUrl: "/" });
+        return;
+      }
+      const result = await GoogleAuth.signIn();
+      if (result?.idToken) {
+        const res = await signIn("google-native", { idToken: result.idToken, redirect: false, callbackUrl: "/" });
+        if (res?.ok) {
+          window.location.href = "/";
+        } else {
+          console.error("Native sign-in failed:", res?.error);
+          signIn("google", { callbackUrl: "/" });
+        }
+      } else {
+        console.warn("No ID token from native plugin, falling back");
+        signIn("google", { callbackUrl: "/" });
+      }
+    } catch (e) {
+      console.error("Native sign-in error:", e);
+      signIn("google", { callbackUrl: "/" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#13111c]">
       <div className="chat-bg absolute inset-0" />
@@ -17,8 +75,9 @@ export default function LoginPage() {
         </div>
         <div className="bg-[#1e1b2e] border border-[#3b3558] rounded-2xl p-6">
           <button
-            onClick={() => signIn("google", { callbackUrl: "/" })}
-            className="w-full flex items-center justify-center gap-3 bg-white text-gray-900 font-medium py-3 px-4 rounded-xl hover:bg-gray-100 transition-colors"
+            onClick={handleGoogleSignIn}
+            disabled={loading}
+            className="w-full flex items-center justify-center gap-3 bg-white text-gray-900 font-medium py-3 px-4 rounded-xl hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path
@@ -38,7 +97,7 @@ export default function LoginPage() {
                 fill="#EA4335"
               />
             </svg>
-            Continue with Google
+            {loading ? "Signing in..." : "Continue with Google"}
           </button>
         </div>
         <p className="text-center text-xs text-gray-600 mt-4">

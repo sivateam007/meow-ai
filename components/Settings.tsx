@@ -1,7 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Settings as SettingsType, AVAILABLE_MODELS, DEFAULT_SETTINGS } from "@/lib/types";
+
+function getTodayUsage(): string {
+  try {
+    const day = new Date().toISOString().slice(0, 10);
+    const tokens = parseInt(localStorage.getItem(`meow_usage_${day}`) || "0", 10) || 0;
+    if (tokens < 1000) return `${tokens} tokens`;
+    return `${(tokens / 1000).toFixed(1)}k tokens`;
+  } catch {
+    return "unavailable";
+  }
+}
 
 interface SettingsProps {
   settings: SettingsType;
@@ -11,6 +22,11 @@ interface SettingsProps {
 
 export default function Settings({ settings, onSave, onClose }: SettingsProps) {
   const [local, setLocal] = useState<SettingsType>({ ...settings });
+  const [todayUsage, setTodayUsage] = useState("…");
+
+  useEffect(() => {
+    setTodayUsage(getTodayUsage());
+  }, []);
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -74,6 +90,13 @@ export default function Settings({ settings, onSave, onClose }: SettingsProps) {
               <span>Short</span>
               <span>Long</span>
             </div>
+          </div>
+
+          <div className="border border-[#3b3558] rounded-xl px-4 py-3 bg-[#13111c]/60">
+            <p className="text-xs text-gray-400">
+              Estimated usage today (this device):{" "}
+              <span className="text-white font-semibold">{todayUsage}</span>
+            </p>
           </div>
         </div>
 

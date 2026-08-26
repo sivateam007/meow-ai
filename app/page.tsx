@@ -7,7 +7,6 @@ import Sidebar from "@/components/Sidebar";
 import ChatWindow from "@/components/ChatWindow";
 import Settings from "@/components/Settings";
 import { Conversation, Message, Settings as SettingsType, DEFAULT_SETTINGS, FileAttachment } from "@/lib/types";
-import { SYSTEM_PROMPT } from "@/lib/constants";
 import {
   fetchConversations,
   fetchConversation,
@@ -18,6 +17,20 @@ import {
   saveSettings,
   generateTitle,
 } from "@/lib/storage";
+
+const FLUSH_INTERVAL_MS = 60;
+
+function recordUsage(promptTokens?: number, completionTokens?: number) {
+  try {
+    const day = new Date().toISOString().slice(0, 10);
+    const key = `meow_usage_${day}`;
+    const prev = parseInt(localStorage.getItem(key) || "0", 10) || 0;
+    const total = prev + (promptTokens || 0) + (completionTokens || 0);
+    localStorage.setItem(key, String(total));
+  } catch {
+    // ignore storage failures
+  }
+}
 
 export default function Home() {
   const { data: session, status } = useSession();
@@ -91,30 +104,59 @@ export default function Home() {
     abortRef.current = controller;
 
     let assistantContent = "";
-    const assistantMessage: Message = { role: "assistant", content: "", timestamp: Date.now() };
+    let usage: { promptTokens?: number; completionTokens?: number } | null = null;
+    let flushTimer: ReturnType<typeof setTimeout> | null = null;
+    const assistantTimestamp = Date.now();
+
+    // Show the assistant bubble instantly — user sees "Thinking…" right away.
+    const withPlaceholder: Message[] = [
+      ...msgs,
+      { role: "assistant", content: "", timestamp: assistantTimestamp },
+    ];
+    setActiveConv({ ...conv, title, messages: withPlaceholder, updatedAt: Date.now() });
+
+    const applyFlush = () => {
+      flushTimer = null;
+      setActiveConv((prev) => {
+        if (!prev) return prev;
+        const ms = [...prev.messages];
+        if (ms.length > 0 && ms[ms.length - 1].role === "assistant") {
+          ms[ms.length - 1] = {
+            role: "assistant",
+            content: assistantContent,
+            timestamp: assistantTimestamp,
+          };
+        }
+        return { ...prev, messages: ms };
+      });
+    };
+
+    const scheduleFlush = () => {
+      if (!flushTimer) {
+        flushTimer = setTimeout(applyFlush, FLUSH_INTERVAL_MS);
+      }
+    };
+
+    const cancelFlush = () => {
+      if (flushTimer) {
+        clearTimeout(flushTimer);
+        flushTimer = null;
+      }
+    };
 
     try {
-      const apiMessages = [
-        { role: "system", content: SYSTEM_PROMPT },
-        ...msgs.map((m) => {
-          let msgContent = m.content;
-          if (m.attachments && m.attachments.length > 0) {
-            const fileParts = m.attachments.map((a) => {
-              if (a.type.startsWith("image/")) {
-                return `[Image attached: ${a.name}]`;
-              }
-              return `[File attached: ${a.name}]\n\`\`\`\n${a.content.substring(0, 8000)}\n\`\`\``;
-            });
-            msgContent = msgContent + "\n\n" + fileParts.join("\n\n");
-          }
-          return { role: m.role, content: msgContent };
-        }),
-      ];
+      // Attachments are sent as structured data; the server embeds contents only
+      // for the newest message and collapses older ones (token savings).
+      const payloadMessages = msgs.map((m) => ({
+        role: m.role,
+        content: m.content,
+        ...(m.attachments ? { attachments: m.attachments } : {}),
+      }));
 
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: apiMessages, settings }),
+        body: JSON.stringify({ messages: payloadMessages, settings }),
         signal: controller.signal,
       });
 
@@ -149,20 +191,14 @@ export default function Home() {
               }
               try {
                 const parsed = JSON.parse(data);
+                if (parsed.usage) {
+                  usage = parsed.usage;
+                  continue;
+                }
                 if (parsed.content) {
                   setIsSearching(false);
                   assistantContent += parsed.content;
-                  assistantMessage.content = assistantContent;
-                  setActiveConv((prev) => {
-                    if (!prev) return prev;
-                    const ms = [...prev.messages];
-                    if (ms.length > 0 && ms[ms.length - 1].role === "assistant") {
-                      ms[ms.length - 1] = { ...assistantMessage };
-                    } else {
-                      ms.push({ ...assistantMessage });
-                    }
-                    return { ...prev, messages: ms, updatedAt: Date.now() };
-                  });
+                  scheduleFlush();
                 }
               } catch {
                 // skip
@@ -175,7 +211,12 @@ export default function Home() {
         }
       }
 
-      const finalMessages = [...msgs, { ...assistantMessage, content: assistantContent }];
+      cancelFlush();
+      applyFlush();
+
+      recordUsage(usage?.promptTokens, usage?.completionTokens);
+
+      const finalMessages = [...msgs, { role: "assistant" as const, content: assistantContent, timestamp: assistantTimestamp }];
       await updateConversationAPI(conv.id, {
         title,
         messages: finalMessages.map((m) => ({
@@ -189,11 +230,14 @@ export default function Home() {
       setActiveConv(finalConv);
       refreshConversations();
     } catch (error: unknown) {
+      cancelFlush();
+
       if (controller.signal.aborted) {
+        applyFlush();
         const hasPartial = assistantContent.trim().length > 0;
         if (hasPartial || !isRegenerate) {
           const persistedMessages = hasPartial
-            ? [...msgs, { ...assistantMessage, content: assistantContent }]
+            ? [...msgs, { role: "assistant" as const, content: assistantContent, timestamp: assistantTimestamp }]
             : msgs;
           setActiveConv({ ...conv, title, messages: persistedMessages, updatedAt: Date.now() });
           await updateConversationAPI(conv.id, {
@@ -208,23 +252,25 @@ export default function Home() {
         }
         return;
       }
+
+      // Connection dropped / error mid-stream: keep whatever was already shown.
+      const hasPartial = assistantContent.trim().length > 0;
       let errorText = "Sorry, something went wrong. Please try again later.";
-      if (error instanceof Error) {
-        errorText = error.message || errorText;
+      if (error instanceof Error && error.message) {
+        errorText = error.message;
       }
-      const errorMessage: Message = {
-        role: "assistant",
-        content: errorText,
-        timestamp: Date.now(),
-      };
+      const finalAssistant: Message = hasPartial
+        ? { role: "assistant", content: `${assistantContent}\n\n_(interrupted — ${errorText})_`, timestamp: assistantTimestamp }
+        : { role: "assistant", content: errorText, timestamp: Date.now() };
+
       const errorConv = {
         ...conv,
-        messages: [...msgs, errorMessage],
+        messages: [...msgs, finalAssistant],
         updatedAt: Date.now(),
       };
       setActiveConv(errorConv);
       await updateConversationAPI(conv.id, {
-        messages: [...msgs, errorMessage].map((m) => ({
+        messages: [...msgs, finalAssistant].map((m) => ({
           role: m.role,
           content: m.content,
           timestamp: m.timestamp,
@@ -261,20 +307,21 @@ export default function Home() {
     await streamResponse(conv, updatedMessages, newTitle);
   };
 
-  const handleRegenerate = async () => {
+  const handleRegenerate = useCallback(async () => {
     if (!activeConv || isLoading) return;
     const msgs = activeConv.messages;
     const lastIdx = msgs.length - 1;
     if (lastIdx < 0 || msgs[lastIdx].role !== "assistant") return;
     const previousMessages = msgs.slice(0, lastIdx);
     await streamResponse(activeConv, previousMessages, activeConv.title, true);
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeConv, isLoading, settings]);
 
-  const handleStop = () => {
+  const handleStop = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
     setIsLoading(false);
-  };
+  }, []);
 
   if (status === "loading" || !mounted) {
     return (

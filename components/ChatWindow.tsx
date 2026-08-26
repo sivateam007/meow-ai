@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Message, FileAttachment } from "@/lib/types";
 import MessageBubble from "./MessageBubble";
 import ChatInput from "./ChatInput";
@@ -20,6 +20,8 @@ interface ChatWindowProps {
   onToggleWebSearch: () => void;
 }
 
+const NEAR_BOTTOM_THRESHOLD = 120;
+
 export default function ChatWindow({
   messages,
   onSend,
@@ -34,18 +36,46 @@ export default function ChatWindow({
   webSearch,
   onToggleWebSearch,
 }: ChatWindowProps) {
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isNearBottomRef = useRef(true);
+  const [showJump, setShowJump] = useState(false);
+
+  const scrollToBottom = useCallback((smooth = false) => {
+    const el = containerRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+    isNearBottomRef.current = true;
+    setShowJump(false);
+  }, []);
+
+  // Instant-follow scroll only while the user is already near the bottom.
+  useEffect(() => {
+    if (isNearBottomRef.current) {
+      const el = containerRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    }
+  }, [messages]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isLoading]);
+    if (isLoading) return; // during streaming, follow only when near bottom
+    scrollToBottom(true);
+  }, [isLoading, scrollToBottom]);
+
+  const handleScroll = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const near = distance < NEAR_BOTTOM_THRESHOLD;
+    isNearBottomRef.current = near;
+    setShowJump(!near && el.scrollHeight > el.clientHeight + 200);
+  }, []);
 
   const lastAssistantMsg = messages.filter((m) => m.role === "assistant").pop();
   const lastMsgIndex = lastAssistantMsg ? messages.indexOf(lastAssistantMsg) : -1;
   const canRegenerate = lastMsgIndex >= 0 && lastMsgIndex === messages.length - 1;
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 min-w-0">
+    <div className="flex-1 flex flex-col min-h-0 min-w-0 relative">
       <header className="flex items-center justify-between px-3 sm:px-4 py-3 border-b border-[#3b3558] bg-[#13111c]/80 backdrop-blur-sm flex-shrink-0">
         <div className="flex items-center gap-2 sm:gap-3">
           <button onClick={onOpenSidebar} className="text-gray-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-[#3d3760]">
@@ -80,14 +110,18 @@ export default function ChatWindow({
             className="text-gray-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-[#3d3760]"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37-2.37.996-.608 2.296-.07 2.572-1.065z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
           </button>
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto">
+      <div
+        ref={containerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto"
+      >
         <div className="chat-bg min-h-full">
           <div className="chat-bg-overlay min-h-full">
             <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
@@ -128,38 +162,29 @@ export default function ChatWindow({
                       autoSpeak={liveMode && msg.role === "assistant" && i === lastMsgIndex && !isLoading}
                       canRegenerate={msg.role === "assistant" && i === lastMsgIndex && !isLoading}
                       onRegenerate={onRegenerate}
-                      isLoading={isLoading}
+                      isStreaming={isLoading && msg.role === "assistant" && i === messages.length - 1}
+                      isSearchingBubble={isSearching && i === messages.length - 1}
                     />
                   ))}
-                  {isLoading && (
-                    <div className="message-appear flex justify-start mb-4">
-                      <div className="max-w-[85%] sm:max-w-[80%] rounded-2xl rounded-bl-md px-4 sm:px-5 py-3 bg-[#2a2640] border border-[#3b3558]">
-                        <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[#3b3558]">
-                          <div className="w-6 h-6 rounded-full bg-[#7c3aed] flex items-center justify-center text-xs font-bold">
-                            M
-                          </div>
-                          <span className="text-xs font-semibold text-[#a78bfa]">Meow AI</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="flex gap-1.5">
-                            <div className="w-2 h-2 rounded-full bg-[#a78bfa] animate-bounce" style={{ animationDelay: "0ms" }} />
-                            <div className="w-2 h-2 rounded-full bg-[#a78bfa] animate-bounce" style={{ animationDelay: "150ms" }} />
-                            <div className="w-2 h-2 rounded-full bg-[#a78bfa] animate-bounce" style={{ animationDelay: "300ms" }} />
-                          </div>
-                          {isSearching && (
-                            <span className="text-xs text-gray-400">Searching the web…</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </>
               )}
-              <div ref={bottomRef} />
+              <div />
             </div>
           </div>
         </div>
       </div>
+
+      {showJump && (
+        <button
+          onClick={() => scrollToBottom(true)}
+          className="absolute bottom-28 left-1/2 -translate-x-1/2 z-10 w-9 h-9 rounded-full bg-[#2a2640] border border-[#3b3558] text-gray-300 hover:text-white hover:border-[#7c3aed]/60 shadow-lg flex items-center justify-center transition-all"
+          title="Jump to latest"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+          </svg>
+        </button>
+      )}
 
       <ChatInput onSend={onSend} isLoading={isLoading} onStop={onStop} webSearch={webSearch} onToggleWebSearch={onToggleWebSearch} />
     </div>

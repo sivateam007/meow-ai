@@ -3,6 +3,102 @@ import { auth } from "@/lib/auth";
 import { webSearch, formatSearchResults } from "@/lib/search";
 import { rateLimit } from "@/lib/ratelimit";
 import { isAdmin } from "@/lib/admin";
+import { SYSTEM_PROMPT } from "@/lib/constants";
+
+interface ApiAttachment {
+  name: string;
+  type: string;
+  content?: string;
+}
+
+interface ApiMessage {
+  role: string;
+  content: string;
+  attachments?: ApiAttachment[];
+}
+
+// ~6k tokens of conversation context sent upstream per request.
+const CONTEXT_CHAR_BUDGET = 24000;
+const ATTACHMENT_CHAR_CAP = 8000;
+const SEARCH_CONTEXT_CAP = 2000;
+
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+function friendlyError(message: string, status: number): string {
+  const m = (message || "").toLowerCase();
+  if (
+    status === 429 ||
+    /quota|limit.*(exceed|reach)|exceed.*limit|rate.?limit|too many request|insufficient/.test(m)
+  ) {
+    return "Meow AI is very busy right now (provider limit reached). Please try again in a little while.";
+  }
+  if (/billing|credit|balance|payment/.test(m)) {
+    return "Meow AI's provider account needs attention. Please try again later.";
+  }
+  if (status >= 500) {
+    return "Meow AI's brain hiccuped (provider error). Please try again.";
+  }
+  return message;
+}
+
+/**
+ * Builds the upstream message array:
+ * - Injects attachment contents ONLY for the newest user message;
+ *   older attachments collapse to lightweight "[file attached earlier]" references.
+ * - Windows history to CONTEXT_CHAR_BUDGET chars (newest-first), so long chats
+ *   stop growing token cost quadratically.
+ * - Prepends the system prompt.
+ */
+function buildApiMessages(messages: ApiMessage[]): {
+  finalMessages: { role: string; content: string }[];
+  inputChars: number;
+} {
+  const nonSystem = messages.filter((m) => m.role !== "system");
+
+  let lastUserIdx = -1;
+  for (let i = nonSystem.length - 1; i >= 0; i--) {
+    if (nonSystem[i].role === "user") {
+      lastUserIdx = i;
+      break;
+    }
+  }
+
+  const rendered = nonSystem.map((m, i) => {
+    let content = m.content || "";
+    const atts = m.attachments || [];
+    if (atts.length > 0) {
+      const parts = atts.map((a) => {
+        if ((a.type || "").startsWith("image/")) {
+          return `[Image attached: ${a.name}]`;
+        }
+        if (i === lastUserIdx && typeof a.content === "string" && a.content) {
+          return `[File attached: ${a.name}]\n\`\`\`\n${a.content.substring(0, ATTACHMENT_CHAR_CAP)}\n\`\`\``;
+        }
+        return `[File attached earlier: ${a.name}]`;
+      });
+      content = `${content}\n\n${parts.join("\n\n")}`;
+    }
+    return { role: m.role, content };
+  });
+
+  const kept: { role: string; content: string }[] = [];
+  let budget = CONTEXT_CHAR_BUDGET;
+  for (let i = rendered.length - 1; i >= 0; i--) {
+    const cost = rendered[i].content.length;
+    if (i === rendered.length - 1 || cost <= budget) {
+      kept.unshift(rendered[i]);
+      budget -= cost;
+    } else {
+      break;
+    }
+  }
+
+  const finalMessages = [{ role: "system", content: SYSTEM_PROMPT }, ...kept];
+  const inputChars = finalMessages.reduce((sum, m) => sum + m.content.length, 0);
+  return { finalMessages, inputChars };
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,23 +129,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let enhancedMessages = messages;
+    let workingMessages: ApiMessage[] = Array.isArray(messages) ? messages : [];
 
     if (settings?.webSearch) {
-      const lastUserMsg = [...messages].reverse().find((m: { role: string }) => m.role === "user");
+      const lastUserMsg = [...workingMessages].reverse().find((m: ApiMessage) => m.role === "user");
       if (lastUserMsg) {
         const results = await webSearch(lastUserMsg.content);
         const searchContext = formatSearchResults(results);
         if (searchContext) {
-          enhancedMessages = [...messages];
-          const lastIdx = enhancedMessages.length - 1;
-          enhancedMessages[lastIdx] = {
-            ...enhancedMessages[lastIdx],
-            content: searchContext + "\n\nUser question: " + enhancedMessages[lastIdx].content,
+          workingMessages = [...workingMessages];
+          const lastIdx = workingMessages.length - 1;
+          workingMessages[lastIdx] = {
+            ...workingMessages[lastIdx],
+            content:
+              searchContext.substring(0, SEARCH_CONTEXT_CAP) +
+              "\n\nUser question: " +
+              workingMessages[lastIdx].content,
           };
         }
       }
     }
+
+    const { finalMessages, inputChars } = buildApiMessages(workingMessages);
 
     const response = await fetch(apiUrl, {
       method: "POST",
@@ -59,7 +160,7 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         model: settings?.model || "big-pickle",
-        messages: enhancedMessages,
+        messages: finalMessages,
         temperature: settings?.temperature ?? 0.7,
         max_tokens: settings?.maxTokens ?? 2048,
         stream: true,
@@ -76,6 +177,7 @@ export async function POST(request: NextRequest) {
       } catch {
         // ignore unparsable error bodies
       }
+      message = friendlyError(message, response.status);
       if (message.length > 300) message = message.substring(0, 300) + "...";
       return new Response(
         JSON.stringify({ error: message }),
@@ -86,6 +188,8 @@ export async function POST(request: NextRequest) {
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
     let buffer = "";
+    let completionChars = 0;
+    let upstreamUsage: { promptTokens?: number; completionTokens?: number } | null = null;
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -101,13 +205,37 @@ export async function POST(request: NextRequest) {
             if (!line.startsWith("data:")) continue;
             const data = line.slice(5).trim();
             if (data === "[DONE]") {
+              const promptTokens =
+                upstreamUsage?.promptTokens ?? estimateTokens(
+                  finalMessages.reduce((s, m) => s + m.content.length, "")
+                );
+              const completionTokens =
+                upstreamUsage?.completionTokens ?? estimateTokens(
+                  String(completionChars)
+                );
+              controller.enqueue(
+                encoder.encode(
+                  `data: ${JSON.stringify({
+                    usage: { promptTokens, completionTokens },
+                  })}\n\n`
+                )
+              );
               controller.enqueue(encoder.encode("data: [DONE]\n\n"));
               return true;
             }
             try {
               const parsed = JSON.parse(data);
+              if (parsed.usage) {
+                upstreamUsage = {
+                  promptTokens: parsed.usage.prompt_tokens ?? parsed.usage.promptTokens,
+                  completionTokens:
+                    parsed.usage.completion_tokens ?? parsed.usage.completionTokens,
+                };
+                continue;
+              }
               const content = parsed.choices?.[0]?.delta?.content;
               if (content) {
+                completionChars += content.length;
                 controller.enqueue(
                   encoder.encode(`data: ${JSON.stringify({ content })}\n\n`)
                 );

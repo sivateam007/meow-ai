@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
-import ReactMarkdown from "react-markdown";
+import { memo, useState, useCallback, useEffect, useRef } from "react";
+import ReactMarkdown, { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import CodeBlock from "./CodeBlock";
 import { Message } from "@/lib/types";
@@ -13,9 +13,106 @@ interface MessageBubbleProps {
   canRegenerate?: boolean;
   onRegenerate?: () => void;
   isLoading?: boolean;
+  isStreaming?: boolean;
+  isSearchingBubble?: boolean;
 }
 
-export default function MessageBubble({ message, autoSpeak, canRegenerate, onRegenerate, isLoading }: MessageBubbleProps) {
+const markdownComponents: Components = {
+  code({ className, children, ...props }) {
+    const match = /language-(\w+)/.exec(className || "");
+    const codeString = String(children).replace(/\n$/, "");
+    if (match) {
+      return <CodeBlock language={match[1]}>{codeString}</CodeBlock>;
+    }
+    if (codeString.includes("\n")) {
+      return <CodeBlock>{codeString}</CodeBlock>;
+    }
+    return (
+      <code className={className} {...props}>
+        {children}
+      </code>
+    );
+  },
+  p({ children }) {
+    return <p className="mb-2 last:mb-0">{children}</p>;
+  },
+  ul({ children }) {
+    return <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>;
+  },
+  ol({ children }) {
+    return <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>;
+  },
+  a({ href, children }) {
+    const safe = href && /^(https?:|mailto:)/i.test(href);
+    if (!safe) return <span>{children}</span>;
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-[#a78bfa] hover:text-[#7c3aed] underline"
+      >
+        {children}
+      </a>
+    );
+  },
+  blockquote({ children }) {
+    return (
+      <blockquote className="border-l-4 border-[#7c3aed] pl-4 italic text-gray-400 my-2">
+        {children}
+      </blockquote>
+    );
+  },
+  h1({ children }) {
+    return <h1 className="text-xl font-bold mb-2 mt-4">{children}</h1>;
+  },
+  h2({ children }) {
+    return <h2 className="text-lg font-bold mb-2 mt-3">{children}</h2>;
+  },
+  h3({ children }) {
+    return <h3 className="text-base font-bold mb-1 mt-3">{children}</h3>;
+  },
+  table({ children }) {
+    return (
+      <div className="overflow-x-auto my-2">
+        <table className="border-collapse border border-[#3b3558] text-sm">
+          {children}
+        </table>
+      </div>
+    );
+  },
+  th({ children }) {
+    return (
+      <th className="border border-[#3b3558] bg-[#13111c] px-3 py-1.5 text-left font-semibold">
+        {children}
+      </th>
+    );
+  },
+  td({ children }) {
+    return (
+      <td className="border border-[#3b3558] px-3 py-1.5">{children}</td>
+    );
+  },
+};
+
+function arePropsEqual(prev: MessageBubbleProps, next: MessageBubbleProps) {
+  return (
+    prev.message === next.message &&
+    prev.isStreaming === next.isStreaming &&
+    prev.isSearchingBubble === next.isSearchingBubble &&
+    prev.canRegenerate === next.canRegenerate &&
+    prev.autoSpeak === next.autoSpeak
+  );
+}
+
+function MessageBubble({
+  message,
+  autoSpeak,
+  canRegenerate,
+  onRegenerate,
+  isStreaming,
+  isSearchingBubble,
+}: MessageBubbleProps) {
   const isUser = message.role === "user";
   const [speaking, setSpeaking] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -85,7 +182,7 @@ export default function MessageBubble({ message, autoSpeak, canRegenerate, onReg
               <span className="text-xs font-semibold text-[#a78bfa]">Meow AI</span>
             </div>
             <div className="flex items-center gap-1">
-              {canRegenerate && !isLoading && (
+              {canRegenerate && !isStreaming && (
                 <button
                   onClick={onRegenerate}
                   className="p-1.5 rounded-lg transition-all text-gray-500 hover:text-[#a78bfa] hover:bg-[#3d3760]"
@@ -161,89 +258,30 @@ export default function MessageBubble({ message, autoSpeak, canRegenerate, onReg
         <div className="prose prose-invert prose-sm max-w-none">
           {isUser ? (
             <p className="whitespace-pre-wrap">{message.content}</p>
+          ) : message.content ? (
+            <>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                {message.content}
+              </ReactMarkdown>
+              {isStreaming && (
+                <span className="inline-block w-2 h-4 bg-[#a78bfa] animate-pulse ml-0.5 align-middle" aria-hidden="true" />
+              )}
+            </>
           ) : (
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                code({ className, children, ...props }) {
-                  const match = /language-(\w+)/.exec(className || "");
-                  const codeString = String(children).replace(/\n$/, "");
-                  if (match) {
-                    return <CodeBlock language={match[1]}>{codeString}</CodeBlock>;
-                  }
-                  if (codeString.includes("\n")) {
-                    return <CodeBlock>{codeString}</CodeBlock>;
-                  }
-                  return (
-                    <code className={className} {...props}>
-                      {children}
-                    </code>
-                  );
-                },
-                p({ children }) {
-                  return <p className="mb-2 last:mb-0">{children}</p>;
-                },
-                ul({ children }) {
-                  return <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>;
-                },
-                ol({ children }) {
-                  return <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>;
-                },
-                a({ href, children }) {
-                  const safe = href && /^(https?:|mailto:)/i.test(href);
-                  if (!safe) return <span>{children}</span>;
-                  return (
-                    <a
-                      href={href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[#a78bfa] hover:text-[#7c3aed] underline"
-                    >
-                      {children}
-                    </a>
-                  );
-                },
-                blockquote({ children }) {
-                  return (
-                    <blockquote className="border-l-4 border-[#7c3aed] pl-4 italic text-gray-400 my-2">
-                      {children}
-                    </blockquote>
-                  );
-                },
-                h1({ children }) {
-                  return <h1 className="text-xl font-bold mb-2 mt-4">{children}</h1>;
-                },
-                h2({ children }) {
-                  return <h2 className="text-lg font-bold mb-2 mt-3">{children}</h2>;
-                },
-                h3({ children }) {
-                  return <h3 className="text-base font-bold mb-1 mt-3">{children}</h3>;
-                },
-                table({ children }) {
-                  return (
-                    <div className="overflow-x-auto my-2">
-                      <table className="border-collapse border border-[#3b3558] text-sm">
-                        {children}
-                      </table>
-                    </div>
-                  );
-                },
-                th({ children }) {
-                  return (
-                    <th className="border border-[#3b3558] bg-[#13111c] px-3 py-1.5 text-left font-semibold">
-                      {children}
-                    </th>
-                  );
-                },
-                td({ children }) {
-                  return (
-                    <td className="border border-[#3b3558] px-3 py-1.5">{children}</td>
-                  );
-                },
-              }}
-            >
-              {message.content}
-            </ReactMarkdown>
+            <div className="flex items-center gap-2 min-h-[24px]">
+              {isSearchingBubble ? (
+                <span className="text-xs text-gray-400">Searching the web…</span>
+              ) : (
+                <>
+                  <div className="flex gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-[#a78bfa] animate-bounce" style={{ animationDelay: "0ms" }} />
+                    <div className="w-2 h-2 rounded-full bg-[#a78bfa] animate-bounce" style={{ animationDelay: "150ms" }} />
+                    <div className="w-2 h-2 rounded-full bg-[#a78bfa] animate-bounce" style={{ animationDelay: "300ms" }} />
+                  </div>
+                  <span className="text-xs text-gray-400">Thinking…</span>
+                </>
+              )}
+            </div>
           )}
         </div>
 
@@ -274,3 +312,5 @@ export default function MessageBubble({ message, autoSpeak, canRegenerate, onReg
     </div>
   );
 }
+
+export default memo(MessageBubble, arePropsEqual);

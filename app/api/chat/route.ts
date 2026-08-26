@@ -71,42 +71,6 @@ function isRetryable(status: number, message: string): boolean {
 }
 
 /**
- * Simple in-memory cache for recent responses.
- * Key: modelId + last user message hash → cached SSE output.
- * TTL: 5 minutes. Max 200 entries.
- */
-const responseCache = new Map<string, { data: string; ts: number }>();
-const CACHE_TTL = 5 * 60 * 1000;
-const CACHE_MAX = 200;
-
-function cacheKey(modelId: string, lastUserMsg: string): string {
-  let hash = 0;
-  const s = modelId + lastUserMsg.substring(0, 500);
-  for (let i = 0; i < s.length; i++) {
-    hash = ((hash << 5) - hash + s.charCodeAt(i)) | 0;
-  }
-  return String(hash);
-}
-
-function getCached(key: string): string | null {
-  const entry = responseCache.get(key);
-  if (!entry) return null;
-  if (Date.now() - entry.ts > CACHE_TTL) {
-    responseCache.delete(key);
-    return null;
-  }
-  return entry.data;
-}
-
-function setCache(key: string, data: string): void {
-  if (responseCache.size >= CACHE_MAX) {
-    const oldest = responseCache.keys().next().value;
-    if (oldest !== undefined) responseCache.delete(oldest);
-  }
-  responseCache.set(key, { data, ts: Date.now() });
-}
-
-/**
  * Builds the upstream message array:
  * - Injects attachment contents ONLY for the newest user message;
  *   older attachments collapse to lightweight "[file attached earlier]" references.
@@ -287,21 +251,6 @@ export async function POST(request: NextRequest) {
     const maxTokens = settings?.maxTokens ?? 2048;
     const requestedModel = settings?.model || "big-pickle";
 
-    const lastUserMsg = [...workingMessages].reverse().find((m: ApiMessage) => m.role === "user");
-    const ck = lastUserMsg ? cacheKey(requestedModel, lastUserMsg.content) : null;
-    if (ck) {
-      const cached = getCached(ck);
-      if (cached) {
-        return new Response(cached, {
-          headers: {
-            "Content-Type": "text/event-stream",
-            "Cache-Control": "no-cache",
-            Connection: "keep-alive",
-          },
-        });
-      }
-    }
-
     const modelOrder = [requestedModel, ...FALLBACK_MODELS.filter((m) => m !== requestedModel)];
 
     let lastError = "";
@@ -342,7 +291,6 @@ export async function POST(request: NextRequest) {
     let buffer = "";
     let completionChars = 0;
     let upstreamUsage: { promptTokens?: number; completionTokens?: number } | null = null;
-    let fullText = "";
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -389,7 +337,6 @@ export async function POST(request: NextRequest) {
               if (isMuseSpark) {
                 if (parsed.type === "response.output_text.delta" && parsed.delta) {
                   completionChars += parsed.delta.length;
-                  fullText += parsed.delta;
                   controller.enqueue(
                     encoder.encode(`data: ${JSON.stringify({ content: parsed.delta })}\n\n`)
                   );
@@ -419,7 +366,6 @@ export async function POST(request: NextRequest) {
                 const content = parsed.choices?.[0]?.delta?.content;
                 if (content) {
                   completionChars += content.length;
-                  fullText += content;
                   controller.enqueue(
                     encoder.encode(`data: ${JSON.stringify({ content })}\n\n`)
                   );

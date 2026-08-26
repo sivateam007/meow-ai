@@ -84,8 +84,8 @@ export default function ChatWindow({
             </svg>
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-[#7c3aed] flex items-center justify-center text-xs font-bold">
-              M
+            <div className="w-7 h-7 rounded-full bg-[#7c3aed] flex items-center justify-center">
+              <svg className="w-3.5 h-3.5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
             </div>
             <span className="font-semibold text-white text-sm sm:text-base">Meow AI</span>
           </div>
@@ -128,8 +128,8 @@ export default function ChatWindow({
               {messages.length === 0 && !isLoading ? (
                 <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-2">
                   <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#7c3aed]/20 flex items-center justify-center mb-4 sm:mb-6">
-                    <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-full bg-[#7c3aed] flex items-center justify-center text-xl sm:text-2xl font-bold">
-                      M
+                    <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-full bg-[#7c3aed] flex items-center justify-center">
+                      <svg className="w-6 h-6 sm:w-8 sm:h-8 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
                     </div>
                   </div>
                   <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 sm:mb-3">Meow AI</h1>

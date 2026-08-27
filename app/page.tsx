@@ -44,6 +44,7 @@ export default function Home() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [liveMode, setLiveMode] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [editingMsg, setEditingMsg] = useState<{ index: number; content: string; attachments?: FileAttachment[] } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -113,7 +114,7 @@ export default function Home() {
     URL.revokeObjectURL(url);
   }, [conversations]);
 
-  const streamResponse = async (conv: Conversation, msgs: Message[], title: string, isRegenerate = false) => {
+  const streamResponse = async (conv: Conversation, msgs: Message[], title: string, isRegenerate = false): Promise<string> => {
     setIsLoading(true);
     if (settings.webSearch) setIsSearching(true);
 
@@ -253,6 +254,7 @@ export default function Home() {
       const finalConv = { ...conv, title, messages: finalMessages, updatedAt: Date.now() };
       setActiveConv(finalConv);
       refreshConversations();
+      return assistantContent;
     } catch (error: unknown) {
       cancelFlush();
 
@@ -274,7 +276,7 @@ export default function Home() {
           });
           refreshConversations();
         }
-        return;
+        return assistantContent;
       }
 
       // Connection dropped / error mid-stream: keep whatever was already shown.
@@ -300,6 +302,7 @@ export default function Home() {
           timestamp: m.timestamp,
         })),
       });
+      return assistantContent;
     } finally {
       abortRef.current = null;
       setIsSearching(false);
@@ -347,6 +350,83 @@ export default function Home() {
     setIsLoading(false);
   }, []);
 
+  const buildSuggestions = (lastUserContent: string): string[] => {
+    const q = lastUserContent.toLowerCase();
+    if (/explain|what is|what's|how.*work|what are/i.test(q)) {
+      return [
+        "Can you give me a simple example?",
+        "What are the key takeaways?",
+        "Can you go into more detail?",
+      ];
+    }
+    if (/write|code|create|build|implement/i.test(q)) {
+      return [
+        "Can you explain how this code works?",
+        "Are there any bugs in this code?",
+        "Can you make it more efficient?",
+      ];
+    }
+    if (/summar|tldr|short/i.test(q)) {
+      return [
+        "Can you expand on that?",
+        "What are the main points?",
+        "Give me more details",
+      ];
+    }
+    return [
+      "Can you elaborate more?",
+      "What else should I know?",
+      "Give me an example",
+    ];
+  };
+
+  const lastUserMsg = [...(activeConv?.messages || [])].reverse().find((m) => m.role === "user");
+  const suggestions = lastUserMsg && !isLoading ? buildSuggestions(lastUserMsg.content) : [];
+
+  const handleRename = async (id: string, newTitle: string) => {
+    const trimmed = newTitle.trim();
+    if (!trimmed || trimmed === "New Chat") return;
+    await updateConversationAPI(id, { title: trimmed });
+    setActiveConv((prev) => (prev?.id === id ? { ...prev, title: trimmed } : prev));
+    refreshConversations();
+  };
+
+  const handleStartEdit = (index: number) => {
+    if (!activeConv || isLoading) return;
+    const msg = activeConv.messages[index];
+    if (!msg || msg.role !== "user") return;
+    setEditingMsg({ index, content: msg.content, attachments: msg.attachments });
+  };
+
+  const handleCancelEdit = () => setEditingMsg(null);
+
+  const handleEditSend = async (content: string, attachments?: FileAttachment[]) => {
+    if (!activeConv || !editingMsg || isLoading) return;
+    const msgs = [...activeConv.messages];
+    msgs[editingMsg.index] = {
+      ...msgs[editingMsg.index],
+      content,
+      attachments: attachments && attachments.length > 0 ? attachments : undefined,
+    };
+    if (editingMsg.index > 0 && msgs[editingMsg.index - 1].role === "assistant") {
+      msgs.splice(editingMsg.index - 1, 1);
+    }
+    const editedIndex = editingMsg.index;
+    setEditingMsg(null);
+    const nextConv = { ...activeConv, messages: msgs, updatedAt: Date.now() };
+    setActiveConv(nextConv);
+    await updateConversationAPI(nextConv.id, {
+      messages: msgs.map((m) => ({
+        role: m.role,
+        content: m.content,
+        timestamp: m.timestamp,
+        ...(m.attachments ? { attachments: m.attachments } : {}),
+      })),
+    });
+    refreshConversations();
+    await streamResponse(nextConv, msgs, nextConv.title, editedIndex < msgs.length - 1);
+  };
+
   if (status === "loading" || !mounted) {
     return (
       <div className="h-screen flex items-center justify-center bg-[#13111c]">
@@ -370,6 +450,7 @@ export default function Home() {
         onNew={handleNewChat}
         onDelete={handleDeleteChat}
         onExport={handleExport}
+        onRename={handleRename}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
@@ -380,12 +461,17 @@ export default function Home() {
         isSearching={isSearching}
         onStop={handleStop}
         onRegenerate={handleRegenerate}
+        onEdit={handleStartEdit}
+        editingMsg={editingMsg}
+        onCancelEdit={handleCancelEdit}
+        onEditSend={handleEditSend}
         onOpenSidebar={() => setSidebarOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
         liveMode={liveMode}
         onToggleLiveMode={() => setLiveMode((prev) => !prev)}
         webSearch={settings.webSearch}
         onToggleWebSearch={handleToggleWebSearch}
+        suggestions={suggestions}
       />
       {settingsOpen && (
         <Settings

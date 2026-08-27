@@ -12,12 +12,17 @@ interface ChatWindowProps {
   isSearching: boolean;
   onStop: () => void;
   onRegenerate: () => void;
+  onEdit?: (index: number) => void;
+  editingMsg?: { index: number; content: string; attachments?: FileAttachment[] } | null;
+  onCancelEdit?: () => void;
+  onEditSend?: (content: string, attachments?: FileAttachment[]) => void;
   onOpenSidebar: () => void;
   onOpenSettings: () => void;
   liveMode: boolean;
   onToggleLiveMode: () => void;
   webSearch: boolean;
   onToggleWebSearch: () => void;
+  suggestions?: string[];
 }
 
 const NEAR_BOTTOM_THRESHOLD = 120;
@@ -29,12 +34,17 @@ export default function ChatWindow({
   isSearching,
   onStop,
   onRegenerate,
+  onEdit,
+  editingMsg,
+  onCancelEdit,
+  onEditSend,
   onOpenSidebar,
   onOpenSettings,
   liveMode,
   onToggleLiveMode,
   webSearch,
   onToggleWebSearch,
+  suggestions,
 }: ChatWindowProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
@@ -162,10 +172,27 @@ export default function ChatWindow({
                       autoSpeak={liveMode && msg.role === "assistant" && i === lastMsgIndex && !isLoading}
                       canRegenerate={msg.role === "assistant" && i === lastMsgIndex && !isLoading}
                       onRegenerate={onRegenerate}
+                      onEdit={onEdit ? () => onEdit(i) : undefined}
                       isStreaming={isLoading && msg.role === "assistant" && i === messages.length - 1}
                       isSearchingBubble={isSearching && i === messages.length - 1}
                     />
                   ))}
+                  {!isLoading && suggestions && suggestions.length > 0 && messages.length > 0 && (
+                    <div className="mt-2 mb-4 px-1">
+                      <p className="text-xs text-gray-500 mb-2">You might want to ask:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {suggestions.map((s, i) => (
+                          <button
+                            key={i}
+                            onClick={() => onSend(s)}
+                            className="text-left text-xs sm:text-sm px-3 py-2 rounded-xl border border-[#3b3558] bg-[#2a2640]/50 text-gray-300 hover:text-white hover:border-[#7c3aed]/50 hover:bg-[#2a2640] transition-all"
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
               <div />
@@ -186,7 +213,16 @@ export default function ChatWindow({
         </button>
       )}
 
-      <ChatInput onSend={onSend} isLoading={isLoading} onStop={onStop} webSearch={webSearch} onToggleWebSearch={onToggleWebSearch} />
+      <ChatInput
+        onSend={onSend}
+        isLoading={isLoading}
+        onStop={onStop}
+        webSearch={webSearch}
+        onToggleWebSearch={onToggleWebSearch}
+        editingMsg={editingMsg}
+        onCancelEdit={onCancelEdit}
+        onEditSend={onEditSend}
+      />
     </div>
   );
 }

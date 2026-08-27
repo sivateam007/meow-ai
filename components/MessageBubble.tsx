@@ -12,6 +12,7 @@ interface MessageBubbleProps {
   autoSpeak?: boolean;
   canRegenerate?: boolean;
   onRegenerate?: () => void;
+  onEdit?: () => void;
   isLoading?: boolean;
   isStreaming?: boolean;
   isSearchingBubble?: boolean;
@@ -110,6 +111,7 @@ function MessageBubble({
   autoSpeak,
   canRegenerate,
   onRegenerate,
+  onEdit,
   isStreaming,
   isSearchingBubble,
 }: MessageBubbleProps) {
@@ -286,7 +288,18 @@ function MessageBubble({
         </div>
 
         {isUser && (
-          <div className="flex justify-end mt-1">
+          <div className="flex justify-end mt-1 gap-1">
+            {onEdit && (
+              <button
+                onClick={onEdit}
+                className="p-1.5 rounded-lg transition-all text-white/50 hover:text-white hover:bg-white/10"
+                title="Edit message"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+            )}
             <button
               onClick={handleCopy}
               className={`p-1.5 rounded-lg transition-all ${

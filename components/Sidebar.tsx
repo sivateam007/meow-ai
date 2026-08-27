@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { Conversation } from "@/lib/types";
 
@@ -11,6 +11,7 @@ interface SidebarProps {
   onNew: () => void;
   onDelete: (id: string) => void;
   onExport?: (id: string) => void;
+  onRename?: (id: string, newTitle: string) => void;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -22,6 +23,7 @@ export default function Sidebar({
   onNew,
   onDelete,
   onExport,
+  onRename,
   isOpen,
   onClose,
 }: SidebarProps) {
@@ -29,6 +31,16 @@ export default function Sidebar({
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [search, setSearch] = useState("");
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const renameRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (renamingId && renameRef.current) {
+      renameRef.current.focus();
+      renameRef.current.select();
+    }
+  }, [renamingId]);
 
   useEffect(() => {
     if (!confirmId) return;
@@ -145,7 +157,31 @@ export default function Sidebar({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
               </svg>
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-gray-200 truncate">{conv.title}</p>
+                {renamingId === conv.id ? (
+                  <input
+                    ref={renameRef}
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.stopPropagation();
+                        onRename?.(conv.id, renameValue);
+                        setRenamingId(null);
+                      } else if (e.key === "Escape") {
+                        e.stopPropagation();
+                        setRenamingId(null);
+                      }
+                    }}
+                    onBlur={() => {
+                      onRename?.(conv.id, renameValue);
+                      setRenamingId(null);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full bg-[#1e1b2e] border border-[#7c3aed] rounded px-2 py-0.5 text-sm text-white outline-none"
+                  />
+                ) : (
+                  <p className="text-sm text-gray-200 truncate">{conv.title}</p>
+                )}
                 <p className="text-xs text-gray-600">{formatDate(conv.updatedAt)}</p>
               </div>
               {confirmId === conv.id ? (
@@ -171,6 +207,17 @@ export default function Sidebar({
                 </div>
               ) : (
                 <div className="flex items-center opacity-0 group-hover:opacity-100 transition-all">
+                  {onRename && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setRenamingId(conv.id); setRenameValue(conv.title); }}
+                      className="text-gray-600 hover:text-[#a78bfa] transition-all p-1"
+                      title="Rename"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                  )}
                   {onExport && (
                     <button
                       onClick={(e) => { e.stopPropagation(); onExport(conv.id); }}

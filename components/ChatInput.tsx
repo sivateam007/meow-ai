@@ -9,12 +9,13 @@ interface ChatInputProps {
   onStop: () => void;
   webSearch: boolean;
   onToggleWebSearch: () => void;
+  liveMode?: boolean;
   editingMsg?: { index: number; content: string; attachments?: FileAttachment[] } | null;
   onCancelEdit?: () => void;
   onEditSend?: (content: string, attachments?: FileAttachment[]) => void;
 }
 
-export default function ChatInput({ onSend, isLoading, onStop, webSearch, onToggleWebSearch, editingMsg, onCancelEdit, onEditSend }: ChatInputProps) {
+export default function ChatInput({ onSend, isLoading, onStop, webSearch, onToggleWebSearch, liveMode, editingMsg, onCancelEdit, onEditSend }: ChatInputProps) {
   const [message, setMessage] = useState("");
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
   const [isRecording, setIsRecording] = useState(false);
@@ -35,6 +36,18 @@ export default function ChatInput({ onSend, isLoading, onStop, webSearch, onTogg
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingMsg]);
+
+  // Pause live reading while the user types in live mode.
+  useEffect(() => {
+    if (!liveMode) return;
+    const onKey = () => {
+      if ("speechSynthesis" in window && window.speechSynthesis.speaking) {
+        window.speechSynthesis.pause();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [liveMode]);
 
   const handleSend = () => {
     const trimmed = message.trim();

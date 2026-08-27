@@ -38,6 +38,8 @@ model Message {
   timestamp      BigInt
   attachments    Json?
   model          String?
+  sources        Json?
+  analysis       String?
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])

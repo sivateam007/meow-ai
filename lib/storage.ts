@@ -36,7 +36,14 @@ export async function fetchConversation(id: string): Promise<Conversation | null
 
 export async function createConversationAPI(
   title: string,
-  messages: { role: string; content: string; timestamp: number; attachments?: unknown }[]
+  messages: {
+    role: string;
+    content: string;
+    timestamp: number;
+    attachments?: unknown;
+    sources?: unknown;
+    analysis?: string;
+  }[]
 ): Promise<Conversation | null> {
   const res = await fetch("/api/conversations", {
     method: "POST",
@@ -49,7 +56,17 @@ export async function createConversationAPI(
 
 export async function updateConversationAPI(
   id: string,
-  data: { title?: string; messages?: { role: string; content: string; timestamp: number; attachments?: unknown }[] }
+  data: {
+    title?: string;
+    messages?: {
+      role: string;
+      content: string;
+      timestamp: number;
+      attachments?: unknown;
+      sources?: unknown;
+      analysis?: string;
+    }[];
+  }
 ): Promise<Conversation | null> {
   const res = await fetch(`/api/conversations/${id}`, {
     method: "PUT",

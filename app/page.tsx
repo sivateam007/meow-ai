@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import ChatWindow from "@/components/ChatWindow";
 import Settings from "@/components/Settings";
-import { Conversation, Message, Settings as SettingsType, DEFAULT_SETTINGS, FileAttachment } from "@/lib/types";
+import { Conversation, Message, Settings as SettingsType, DEFAULT_SETTINGS, FileAttachment, SearchSource } from "@/lib/types";
 import {
   fetchConversations,
   fetchConversation,
@@ -122,6 +122,8 @@ export default function Home() {
 
     let assistantContent = "";
     let usedModel: string | undefined;
+    let usedSources: SearchSource[] | undefined;
+    let usedAnalysis = "";
     let usage: { promptTokens?: number; completionTokens?: number } | null = null;
     let flushTimer: ReturnType<typeof setTimeout> | null = null;
     const assistantTimestamp = Date.now();
@@ -144,6 +146,8 @@ export default function Home() {
             content: assistantContent,
             timestamp: assistantTimestamp,
             ...(usedModel ? { model: usedModel } : {}),
+            ...(usedSources && usedSources.length > 0 ? { sources: usedSources } : {}),
+            ...(usedAnalysis ? { analysis: usedAnalysis } : {}),
           };
         }
         return { ...prev, messages: ms };
@@ -214,12 +218,18 @@ export default function Home() {
                   usage = parsed.usage;
                   continue;
                 }
+                if (parsed.sources) {
+                  usedSources = parsed.sources;
+                  continue;
+                }
                 if (parsed.model) {
                   usedModel = parsed.model;
                   continue;
                 }
                 if (parsed.thinking) {
                   setIsSearching(false);
+                  usedAnalysis += parsed.thinking;
+                  scheduleFlush();
                   continue;
                 }
                 if (parsed.content) {
@@ -243,7 +253,7 @@ export default function Home() {
 
       recordUsage(usage?.promptTokens, usage?.completionTokens);
 
-      const finalMessages = [...msgs, { role: "assistant" as const, content: assistantContent, timestamp: assistantTimestamp, ...(usedModel ? { model: usedModel } : {}) }];
+      const finalMessages = [...msgs, { role: "assistant" as const, content: assistantContent, timestamp: assistantTimestamp, ...(usedModel ? { model: usedModel } : {}), ...(usedSources && usedSources.length > 0 ? { sources: usedSources } : {}), ...(usedAnalysis ? { analysis: usedAnalysis } : {}) }];
       await updateConversationAPI(conv.id, {
         title,
         messages: finalMessages.map((m) => ({
@@ -252,6 +262,8 @@ export default function Home() {
           timestamp: m.timestamp,
           ...(m.attachments ? { attachments: m.attachments } : {}),
           ...(m.model ? { model: m.model } : {}),
+          ...(m.sources ? { sources: m.sources } : {}),
+          ...(m.analysis ? { analysis: m.analysis } : {}),
         })),
       });
       const finalConv = { ...conv, title, messages: finalMessages, updatedAt: Date.now() };
@@ -266,7 +278,7 @@ export default function Home() {
         const hasPartial = assistantContent.trim().length > 0;
         if (hasPartial || !isRegenerate) {
           const persistedMessages = hasPartial
-            ? [...msgs, { role: "assistant" as const, content: assistantContent, timestamp: assistantTimestamp, ...(usedModel ? { model: usedModel } : {}) }]
+            ? [...msgs, { role: "assistant" as const, content: assistantContent, timestamp: assistantTimestamp, ...(usedModel ? { model: usedModel } : {}), ...(usedSources && usedSources.length > 0 ? { sources: usedSources } : {}), ...(usedAnalysis ? { analysis: usedAnalysis } : {}) }]
             : msgs;
           setActiveConv({ ...conv, title, messages: persistedMessages, updatedAt: Date.now() });
           await updateConversationAPI(conv.id, {
@@ -276,6 +288,8 @@ export default function Home() {
               timestamp: m.timestamp,
               ...(m.attachments ? { attachments: m.attachments } : {}),
               ...(m.model ? { model: m.model } : {}),
+              ...(m.sources ? { sources: m.sources } : {}),
+              ...(m.analysis ? { analysis: m.analysis } : {}),
             })),
           });
           refreshConversations();
@@ -290,8 +304,8 @@ export default function Home() {
         errorText = error.message;
       }
       const finalAssistant: Message = hasPartial
-        ? { role: "assistant", content: `${assistantContent}\n\n_(interrupted — ${errorText})_`, timestamp: assistantTimestamp, ...(usedModel ? { model: usedModel } : {}) }
-        : { role: "assistant", content: errorText, timestamp: Date.now(), ...(usedModel ? { model: usedModel } : {}) };
+        ? { role: "assistant", content: `${assistantContent}\n\n_(interrupted — ${errorText})_`, timestamp: assistantTimestamp, ...(usedModel ? { model: usedModel } : {}), ...(usedSources && usedSources.length > 0 ? { sources: usedSources } : {}), ...(usedAnalysis ? { analysis: usedAnalysis } : {}) }
+        : { role: "assistant", content: errorText, timestamp: Date.now(), ...(usedModel ? { model: usedModel } : {}), ...(usedSources && usedSources.length > 0 ? { sources: usedSources } : {}), ...(usedAnalysis ? { analysis: usedAnalysis } : {}) };
 
       const errorConv = {
         ...conv,
@@ -305,6 +319,8 @@ export default function Home() {
           content: m.content,
           timestamp: m.timestamp,
           ...(m.model ? { model: m.model } : {}),
+          ...(m.sources ? { sources: m.sources } : {}),
+          ...(m.analysis ? { analysis: m.analysis } : {}),
         })),
       });
       return assistantContent;
@@ -427,6 +443,8 @@ export default function Home() {
         timestamp: m.timestamp,
         ...(m.attachments ? { attachments: m.attachments } : {}),
         ...(m.model ? { model: m.model } : {}),
+        ...(m.sources ? { sources: m.sources } : {}),
+        ...(m.analysis ? { analysis: m.analysis } : {}),
       })),
     });
     refreshConversations();

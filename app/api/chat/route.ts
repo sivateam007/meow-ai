@@ -259,12 +259,14 @@ export async function POST(request: NextRequest) {
     }
 
     let workingMessages: ApiMessage[] = messages;
+    let usedSources: { title: string; url: string }[] = [];
 
     if (settings?.webSearch) {
       const lastUserMsg = [...workingMessages].reverse().find((m: ApiMessage) => m.role === "user");
       if (lastUserMsg) {
         const results = await webSearch(lastUserMsg.content);
         const searchContext = formatSearchResults(results);
+        usedSources = results.map((r) => ({ title: r.title, url: r.url }));
         if (searchContext) {
           workingMessages = [...workingMessages];
           const lastIdx = workingMessages.length - 1;
@@ -351,6 +353,10 @@ export async function POST(request: NextRequest) {
 
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify({ model: usedModel })}\n\n`)
+        );
+
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify({ sources: usedSources })}\n\n`)
         );
 
         const processEvent = (event: string) => {

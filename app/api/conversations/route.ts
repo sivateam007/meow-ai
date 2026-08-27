@@ -15,6 +15,8 @@ function sanitizeMessages(raw: Record<string, unknown>[]): Prisma.MessageUncheck
     timestamp: typeof m.timestamp === "number" ? m.timestamp : Date.now(),
     attachments: m.attachments as Prisma.InputJsonValue | undefined,
     model: typeof m.model === "string" ? m.model : undefined,
+    sources: m.sources as Prisma.InputJsonValue | undefined,
+    analysis: typeof m.analysis === "string" ? m.analysis : undefined,
   }));
 }
 
@@ -45,6 +47,8 @@ export async function GET() {
         timestamp: Number(m.timestamp),
         attachments: m.attachments || undefined,
         model: m.model || undefined,
+        sources: (m.sources as unknown as { title: string; url: string }[]) || undefined,
+        analysis: m.analysis || undefined,
       })),
     }));
 
@@ -103,6 +107,8 @@ export async function POST(request: NextRequest) {
         timestamp: Number(m.timestamp),
         attachments: m.attachments || undefined,
         model: m.model || undefined,
+        sources: (m.sources as unknown as { title: string; url: string }[]) || undefined,
+        analysis: m.analysis || undefined,
       })),
     }));
   } catch {

@@ -268,10 +268,16 @@ function MessageBubble({
   }, [autoSpeak, message.content, speak]);
 
   useEffect(() => {
-    if (!liveStreamSpeak || !isStreaming || !message.content) return;
-    const t = setTimeout(() => speakStream(message.content), 700);
-    return () => clearTimeout(t);
-  }, [liveStreamSpeak, isStreaming, message.content, speakStream]);
+    if (!liveStreamSpeak || !isStreaming) return;
+    if (!message.content && message.analysis) {
+      const t = setTimeout(() => speakStream(message.analysis), 900);
+      return () => clearTimeout(t);
+    }
+    if (message.content) {
+      const t = setTimeout(() => speakStream(message.content), 700);
+      return () => clearTimeout(t);
+    }
+  }, [liveStreamSpeak, isStreaming, message.content, message.analysis, speakStream]);
 
   const handleSpeak = useCallback(() => {
     if (!("speechSynthesis" in window)) return;
@@ -409,13 +415,55 @@ function MessageBubble({
         <div className="prose prose-invert prose-sm max-w-none">
           {isUser ? (
             <p className="whitespace-pre-wrap">{message.content}</p>
-          ) : message.content ? (
+          ) : message.content || message.analysis ? (
             <>
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                {message.content}
-              </ReactMarkdown>
-              {isStreaming && (
+              {message.analysis && (
+                <div className={`mb-2 mt-1 rounded-lg border border-[#3b3558]/70 bg-[#1e1b2e]/50 ${isStreaming && !message.content ? "" : "max-h-40 overflow-y-auto"} ${isStreaming && !message.content ? "" : "text-[#a78bfa]/70"}`}>
+                  <details open={isStreaming && !message.content}>
+                    <summary className="cursor-pointer px-3 py-1.5 text-xs font-medium text-[#a78bfa] select-none">
+                      {isStreaming && !message.content ? "Analyzing…" : "Analysis"}
+                    </summary>
+                    <div className="px-3 pb-2 text-xs italic text-gray-400 whitespace-pre-wrap">
+                      {message.analysis}
+                    </div>
+                  </details>
+                </div>
+              )}
+              {message.content && (
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                  {message.content}
+                </ReactMarkdown>
+              )}
+              {isStreaming && message.content && (
                 <span className="inline-block w-2 h-4 bg-[#a78bfa] animate-pulse ml-0.5 align-middle" aria-hidden="true" />
+              )}
+              {isStreaming && !message.content && message.analysis && (
+                <div className="flex items-center gap-2 mt-2">
+                  <div className="flex gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-[#a78bfa] animate-bounce" style={{ animationDelay: "0ms" }} />
+                    <div className="w-2 h-2 rounded-full bg-[#a78bfa] animate-bounce" style={{ animationDelay: "150ms" }} />
+                    <div className="w-2 h-2 rounded-full bg-[#a78bfa] animate-bounce" style={{ animationDelay: "300ms" }} />
+                  </div>
+                </div>
+              )}
+              {!isStreaming && message.sources && message.sources.length > 0 && (
+                <div className="mt-3 pt-2 border-t border-[#3b3558]">
+                  <p className="text-xs font-semibold text-gray-300 mb-1.5">Sources</p>
+                  <div className="flex flex-col gap-1">
+                    {message.sources.map((s, i) => (
+                      <a
+                        key={i}
+                        href={/^https?:/i.test(s.url) ? s.url : "#"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-[#a78bfa] hover:text-[#7c3aed] underline truncate"
+                        title={s.url}
+                      >
+                        {i + 1}. {s.title}
+                      </a>
+                    ))}
+                  </div>
+                </div>
               )}
             </>
           ) : (

@@ -4,12 +4,19 @@ export interface FileAttachment {
   content: string;
 }
 
+export interface SearchSource {
+  title: string;
+  url: string;
+}
+
 export interface Message {
   role: "user" | "assistant" | "system";
   content: string;
   timestamp: number;
   attachments?: FileAttachment[];
   model?: string;
+  sources?: SearchSource[];
+  analysis?: string;
 }
 
 export interface Conversation {

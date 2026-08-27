@@ -279,11 +279,13 @@ function MessageBubble({
   useEffect(() => {
     if (!liveStreamSpeak || !isStreaming) return;
     if (!message.content && message.analysis) {
-      const t = setTimeout(() => speakStream(message.analysis), 900);
+      const analysis = message.analysis;
+      const t = setTimeout(() => speakStream(analysis), 900);
       return () => clearTimeout(t);
     }
     if (message.content) {
-      const t = setTimeout(() => speakStream(message.content), 700);
+      const content = message.content;
+      const t = setTimeout(() => speakStream(content), 700);
       return () => clearTimeout(t);
     }
   }, [liveStreamSpeak, isStreaming, message.content, message.analysis, speakStream]);

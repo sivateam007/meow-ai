@@ -130,18 +130,21 @@ export default function Settings({ settings, onSave, onClose }: SettingsProps) {
   }, []);
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-[#1e1b2e] border border-[#3b3558] rounded-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-6">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center sm:p-4" onClick={onClose}>
+      <div
+        className="bg-[#1e1b2e] border border-[#3b3558] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md flex flex-col max-h-[92dvh] sm:max-h-[85vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 sm:px-6 pt-5 pb-4 border-b border-[#3b3558]/60 shrink-0">
           <h2 className="text-lg font-bold text-white">Settings</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors p-1 -mr-1">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        <div className="space-y-5">
+        <div className="space-y-5 px-5 sm:px-6 py-5 overflow-y-auto flex-1 min-h-0">
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">Model</label>
             <select
@@ -312,7 +315,7 @@ export default function Settings({ settings, onSave, onClose }: SettingsProps) {
           </div>
         </div>
 
-        <div className="flex gap-3 mt-6">
+        <div className="flex gap-3 px-5 sm:px-6 py-4 border-t border-[#3b3558]/60 shrink-0">
           <button
             onClick={() => { setLocal({ ...DEFAULT_SETTINGS }); }}
             className="flex-1 py-2.5 rounded-xl border border-[#3b3558] text-gray-400 text-sm hover:bg-[#3d3760] transition-colors"

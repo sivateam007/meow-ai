@@ -25,6 +25,9 @@ interface ChatWindowProps {
   suggestions?: string[];
   voice?: string;
   voiceLang?: string;
+  voiceRate?: number;
+  voicePitch?: number;
+  voiceVolume?: number;
 }
 
 const NEAR_BOTTOM_THRESHOLD = 120;
@@ -49,6 +52,9 @@ export default function ChatWindow({
   suggestions,
   voice,
   voiceLang,
+  voiceRate,
+  voicePitch,
+  voiceVolume,
 }: ChatWindowProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
@@ -187,6 +193,9 @@ export default function ChatWindow({
                       isSearchingBubble={isSearching && i === messages.length - 1}
                       voice={voice}
                       voiceLang={voiceLang}
+                      voiceRate={voiceRate}
+                      voicePitch={voicePitch}
+                      voiceVolume={voiceVolume}
                     />
                   ))}
                   {!isLoading && suggestions && suggestions.length > 0 && messages.length > 0 && (

@@ -498,6 +498,9 @@ export default function Home() {
         suggestions={suggestions}
         voice={settings.voice}
         voiceLang={settings.voiceLang}
+        voiceRate={settings.voiceRate}
+        voicePitch={settings.voicePitch}
+        voiceVolume={settings.voiceVolume}
       />
       {settingsOpen && (
         <Settings

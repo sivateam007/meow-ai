@@ -19,6 +19,9 @@ interface MessageBubbleProps {
   liveStreamSpeak?: boolean;
   voice?: string;
   voiceLang?: string;
+  voiceRate?: number;
+  voicePitch?: number;
+  voiceVolume?: number;
 }
 
 const markdownComponents: Components = {
@@ -108,7 +111,10 @@ function arePropsEqual(prev: MessageBubbleProps, next: MessageBubbleProps) {
     prev.autoSpeak === next.autoSpeak &&
     prev.liveStreamSpeak === next.liveStreamSpeak &&
     prev.voice === next.voice &&
-    prev.voiceLang === next.voiceLang
+    prev.voiceLang === next.voiceLang &&
+    prev.voiceRate === next.voiceRate &&
+    prev.voicePitch === next.voicePitch &&
+    prev.voiceVolume === next.voiceVolume
   );
 }
 
@@ -149,6 +155,9 @@ function MessageBubble({
   liveStreamSpeak,
   voice,
   voiceLang,
+  voiceRate = 1,
+  voicePitch = 1,
+  voiceVolume = 1,
 }: MessageBubbleProps) {
   const isUser = message.role === "user";
   const [speaking, setSpeaking] = useState(false);
@@ -187,9 +196,9 @@ function MessageBubble({
     if (!plainText.trim()) return;
 
     const utterance = new SpeechSynthesisUtterance(plainText);
-    utterance.rate = 1;
-    utterance.pitch = 1;
-    utterance.volume = 1;
+    utterance.rate = voiceRate;
+    utterance.pitch = voicePitch;
+    utterance.volume = voiceVolume;
 
     const avail = voices.length > 0 ? voices : window.speechSynthesis.getVoices();
     const detected = detectLang(plainText);
@@ -215,7 +224,7 @@ function MessageBubble({
     window.speechSynthesis.speak(utterance);
     setSpeaking(true);
     setPaused(false);
-  }, [voices, voice, voiceLang]);
+  }, [voices, voice, voiceLang, voiceRate, voicePitch, voiceVolume]);
 
   const speakStream = useCallback((text: string) => {
     if (!("speechSynthesis" in window) || !text.trim()) return;
@@ -227,9 +236,9 @@ function MessageBubble({
     }
 
     const utterance = new SpeechSynthesisUtterance(plainText);
-    utterance.rate = 1;
-    utterance.pitch = 1;
-    utterance.volume = 1;
+    utterance.rate = voiceRate;
+    utterance.pitch = voicePitch;
+    utterance.volume = voiceVolume;
 
     const avail = voices.length > 0 ? voices : window.speechSynthesis.getVoices();
     const detected = detectLang(plainText);
@@ -255,7 +264,7 @@ function MessageBubble({
     window.speechSynthesis.speak(utterance);
     setSpeaking(true);
     setPaused(false);
-  }, [voices, voice, voiceLang]);
+  }, [voices, voice, voiceLang, voiceRate, voicePitch, voiceVolume]);
 
   useEffect(() => {
     if (autoSpeak && !autoSpokenRef.current && message.content) {

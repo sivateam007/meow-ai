@@ -34,6 +34,9 @@ export interface Settings {
   webSearch: boolean;
   voice?: string;
   voiceLang?: string;
+  voiceRate?: number;
+  voicePitch?: number;
+  voiceVolume?: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -41,6 +44,9 @@ export const DEFAULT_SETTINGS: Settings = {
   temperature: 0.7,
   maxTokens: 2048,
   webSearch: false,
+  voiceRate: 1,
+  voicePitch: 1,
+  voiceVolume: 1,
 };
 
 export const AVAILABLE_MODELS = [

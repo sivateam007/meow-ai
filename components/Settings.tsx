@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, ReactNode } from "react";
 import { Settings as SettingsType, AVAILABLE_MODELS, DEFAULT_SETTINGS } from "@/lib/types";
 
 function getTodayUsage(): string {
@@ -23,6 +23,87 @@ interface SettingsProps {
 interface VoiceOption {
   name: string;
   lang: string;
+}
+
+const LANGUAGES: { code: string; label: string }[] = [
+  { code: "ta-IN", label: "Tamil" },
+  { code: "en-US", label: "English (US)" },
+  { code: "en-GB", label: "English (UK)" },
+  { code: "en-IN", label: "English (India)" },
+  { code: "hi-IN", label: "Hindi" },
+  { code: "te-IN", label: "Telugu" },
+  { code: "kn-IN", label: "Kannada" },
+  { code: "ml-IN", label: "Malayalam" },
+  { code: "bn-IN", label: "Bengali" },
+  { code: "mr-IN", label: "Marathi" },
+  { code: "gu-IN", label: "Gujarati" },
+  { code: "pa-IN", label: "Punjabi" },
+  { code: "es-ES", label: "Spanish" },
+  { code: "fr-FR", label: "French" },
+  { code: "de-DE", label: "German" },
+  { code: "it-IT", label: "Italian" },
+  { code: "pt-BR", label: "Portuguese" },
+  { code: "zh-CN", label: "Chinese" },
+  { code: "ja-JP", label: "Japanese" },
+  { code: "ko-KR", label: "Korean" },
+  { code: "ar-SA", label: "Arabic" },
+  { code: "ru-RU", label: "Russian" },
+];
+
+const FEMALE_HINTS = [
+  "google", "samantha", "zira", "aria", "jenny", "allison", "ava", "emma",
+  "susan", "victoria", "karen", "moira", "tessa", "veena", "swara", "neerja",
+  "shilpa", "lekha", "heera", "leela", "heather", "sarah", "fiona", "kate",
+];
+
+function langLabel(code: string): string {
+  const base = code.split("-")[0].toLowerCase();
+  const found = LANGUAGES.find((l) => l.code.toLowerCase() === code.toLowerCase());
+  if (found) return found.label;
+  const langs: Record<string, string> = {
+    en: "English", hi: "Hindi", ta: "Tamil", te: "Telugu", kn: "Kannada",
+    ml: "Malayalam", bn: "Bengali", mr: "Marathi", gu: "Gujarati", pa: "Punjabi",
+    es: "Spanish", fr: "French", de: "German", it: "Italian", pt: "Portuguese",
+    zh: "Chinese", ja: "Japanese", ko: "Korean", ar: "Arabic", ru: "Russian",
+  };
+  return langs[base] || code;
+}
+
+function isFemaleVoice(name: string): boolean {
+  const n = name.toLowerCase();
+  return FEMALE_HINTS.some((h) => n.includes(h));
+}
+
+function testSpeak(
+  voiceName: string | undefined,
+  lang: string | undefined,
+  rate: number,
+  pitch: number,
+  volume: number
+) {
+  if (!("speechSynthesis" in window)) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance("Hello! This is how I sound in Meow AI.");
+  const avail = window.speechSynthesis.getVoices();
+  const preferred =
+    avail.find((v) => v.name === voiceName) ||
+    (lang ? avail.find((v) => v.lang.toLowerCase().startsWith(lang.toLowerCase())) : undefined);
+  if (preferred) u.voice = preferred;
+  else if (lang) u.lang = lang;
+  u.rate = rate;
+  u.pitch = pitch;
+  u.volume = volume;
+  window.speechSynthesis.speak(u);
+}
+
+function groupVoices(list: VoiceOption[]): Map<string, VoiceOption[]> {
+  const map = new Map<string, VoiceOption[]>();
+  for (const v of list) {
+    const key = v.lang.split("-")[0].toLowerCase();
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(v);
+  }
+  return map;
 }
 
 export default function Settings({ settings, onSave, onClose }: SettingsProps) {
@@ -115,28 +196,112 @@ export default function Settings({ settings, onSave, onClose }: SettingsProps) {
             </div>
           </div>
 
-          <div>
+          <div className="border-t border-[#3b3558] pt-4">
             <label className="block text-sm font-medium text-gray-300 mb-2">
-              Read-aloud voice
+              Read-aloud language
             </label>
             <select
-              value={local.voice || ""}
+              value={local.voiceLang || "auto"}
               onChange={(e) => {
-                const opt = voices.find((v) => v.name === e.target.value);
-                setLocal({ ...local, voice: e.target.value || undefined, voiceLang: opt?.lang || local.voiceLang });
+                const v = e.target.value === "auto" ? undefined : e.target.value;
+                setLocal({ ...local, voiceLang: v });
               }}
               className="w-full bg-[#1e1b2e] border border-[#3b3558] rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-[#7c3aed] transition-colors"
             >
-              <option value="">Automatic (match language)</option>
-              {voices.map((v) => (
-                <option key={v.name} value={v.name}>
-                  {v.lang} — {v.name}
-                </option>
+              <option value="auto">Auto-detect (Tamil, Hindi, English…)</option>
+              {LANGUAGES.map((l) => (
+                <option key={l.code} value={l.code}>{l.label}</option>
               ))}
             </select>
-            {voices.length === 0 && (
-              <p className="mt-1.5 text-xs text-gray-500">No voices detected on this device.</p>
-            )}
+
+            <div className="mt-3">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Voice{local.voice ? ` — ${local.voice}` : ""}
+              </label>
+              <select
+                value={local.voice || ""}
+                onChange={(e) => {
+                  const opt = voices.find((v) => v.name === e.target.value);
+                  setLocal({ ...local, voice: e.target.value || undefined, voiceLang: opt?.lang || local.voiceLang });
+                }}
+                className="w-full bg-[#1e1b2e] border border-[#3b3558] rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-[#7c3aed] transition-colors"
+              >
+                <option value="">Automatic (match language)</option>
+                {(() => {
+                  const grouped = groupVoices(voices);
+                  const out: ReactNode[] = [];
+                  grouped.forEach((group, base) => {
+                    out.push(
+                      <optgroup key={base} label={langLabel(base)}>
+                        {group.map((v) => (
+                          <option key={v.name} value={v.name}>
+                            {isFemaleVoice(v.name) ? "♀ " : ""}{v.name}
+                            {isFemaleVoice(v.name) ? " (female)" : ""}
+                          </option>
+                        ))}
+                      </optgroup>
+                    );
+                  });
+                  return out;
+                })()}
+              </select>
+              {voices.length === 0 && (
+                <p className="mt-1.5 text-xs text-gray-500">No voices detected on this device.</p>
+              )}
+              <p className="mt-1 text-xs text-gray-500">Tamil works only if a ta-IN voice is installed on your device.</p>
+            </div>
+
+            <div className="space-y-4 mt-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Speed: {local.voiceRate?.toFixed(1) ?? "1.0"}x
+                </label>
+                <input
+                  type="range"
+                  min="0.5"
+                  max="2"
+                  step="0.1"
+                  value={local.voiceRate ?? 1}
+                  onChange={(e) => setLocal({ ...local, voiceRate: parseFloat(e.target.value) })}
+                  className="w-full accent-[#7c3aed]"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Pitch: {local.voicePitch?.toFixed(1) ?? "1.0"}
+                </label>
+                <input
+                  type="range"
+                  min="0.5"
+                  max="2"
+                  step="0.1"
+                  value={local.voicePitch ?? 1}
+                  onChange={(e) => setLocal({ ...local, voicePitch: parseFloat(e.target.value) })}
+                  className="w-full accent-[#7c3aed]"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Volume: {Math.round((local.voiceVolume ?? 1) * 100)}%
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={local.voiceVolume ?? 1}
+                  onChange={(e) => setLocal({ ...local, voiceVolume: parseFloat(e.target.value) })}
+                  className="w-full accent-[#7c3aed]"
+                />
+              </div>
+            </div>
+
+            <button
+              onClick={() => testSpeak(local.voice, local.voiceLang, local.voiceRate ?? 1, local.voicePitch ?? 1, local.voiceVolume ?? 1)}
+              className="mt-4 w-full py-2 rounded-xl border border-[#a78bfa]/40 text-[#a78bfa] text-sm hover:bg-[#3d3760] transition-colors"
+            >
+              Test voice
+            </button>
           </div>
 
           <div className="border border-[#3b3558] rounded-xl px-4 py-3 bg-[#13111c]/60">

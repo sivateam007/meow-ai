@@ -152,6 +152,7 @@ function MessageBubble({
 }: MessageBubbleProps) {
   const isUser = message.role === "user";
   const [speaking, setSpeaking] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [copied, setCopied] = useState(false);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const autoSpokenRef = useRef(false);
@@ -207,11 +208,13 @@ function MessageBubble({
     if (preferred) utterance.voice = preferred;
     if (voiceLang && !preferred) utterance.lang = voiceLang;
 
-    utterance.onend = () => setSpeaking(false);
-    utterance.onerror = () => setSpeaking(false);
+    utterance.onend = () => { setSpeaking(false); setPaused(false); };
+    utterance.onerror = () => { setSpeaking(false); setPaused(false); };
+    utterance.oncancel = () => { setSpeaking(false); setPaused(false); };
 
     window.speechSynthesis.speak(utterance);
     setSpeaking(true);
+    setPaused(false);
   }, [voices, voice, voiceLang]);
 
   const speakStream = useCallback((text: string) => {
@@ -245,11 +248,13 @@ function MessageBubble({
     if (preferred) utterance.voice = preferred;
     if (voiceLang && !preferred) utterance.lang = voiceLang;
 
-    utterance.onend = () => setSpeaking(false);
-    utterance.onerror = () => setSpeaking(false);
+    utterance.onend = () => { setSpeaking(false); setPaused(false); };
+    utterance.onerror = () => { setSpeaking(false); setPaused(false); };
+    utterance.oncancel = () => { setSpeaking(false); setPaused(false); };
 
     window.speechSynthesis.speak(utterance);
     setSpeaking(true);
+    setPaused(false);
   }, [voices, voice, voiceLang]);
 
   useEffect(() => {
@@ -269,13 +274,27 @@ function MessageBubble({
   }, [liveStreamSpeak, isStreaming, message.content, speakStream]);
 
   const handleSpeak = useCallback(() => {
-    if (speaking) {
-      window.speechSynthesis.cancel();
-      setSpeaking(false);
+    if (!("speechSynthesis" in window)) return;
+    if (speaking && !paused) {
+      window.speechSynthesis.pause();
+      setPaused(true);
+      return;
+    }
+    if (paused) {
+      window.speechSynthesis.resume();
+      setPaused(false);
       return;
     }
     speak(message.content);
-  }, [speaking, message.content, speak]);
+  }, [speaking, paused, message.content, speak]);
+
+  const handleRestart = useCallback(() => {
+    if (!("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    setSpeaking(false);
+    setPaused(false);
+    speak(message.content);
+  }, [message.content, speak]);
 
   return (
     <div className={`message-appear flex ${isUser ? "justify-end" : "justify-start"} mb-4`}>
@@ -327,24 +346,43 @@ function MessageBubble({
               </button>
               <button
                 onClick={handleSpeak}
-              className={`p-1.5 rounded-lg transition-all ${
-                speaking
-                  ? "text-[#7c3aed] bg-[#7c3aed]/10"
-                  : "text-gray-500 hover:text-[#a78bfa] hover:bg-[#3d3760]"
-              }`}
-              title={speaking ? "Stop reading" : "Read aloud"}
-            >
-              {speaking ? (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
-                </svg>
-              ) : (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                </svg>
+                className={`p-1.5 rounded-lg transition-all ${
+                  speaking
+                    ? "text-[#7c3aed] bg-[#7c3aed]/10"
+                    : "text-gray-500 hover:text-[#a78bfa] hover:bg-[#3d3760]"
+                }`}
+                title={
+                  speaking && !paused ? "Pause reading"
+                    : paused ? "Resume reading"
+                    : "Read aloud"
+                }
+              >
+                {speaking && !paused ? (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                  </svg>
+                ) : paused ? (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                  </svg>
+                )}
+              </button>
+              {(speaking || paused) && (
+                <button
+                  onClick={handleRestart}
+                  className="p-1.5 rounded-lg transition-all text-gray-500 hover:text-[#a78bfa] hover:bg-[#3d3760]"
+                  title="Restart reading"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
               )}
-            </button>
             </div>
           </div>
         )}

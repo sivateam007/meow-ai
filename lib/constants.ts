@@ -1,3 +1,79 @@
+export const DEFAULT_STARTER_PROMPTS = [
+  "Explain quantum computing",
+  "Write a Python sorting algorithm",
+  "Help me write a poem",
+  "What are the best practices for React?",
+];
+
+export interface StarterTopic {
+  key: string;
+  keywords: string[];
+  prompts: string[];
+}
+
+export const STARTER_TOPICS: StarterTopic[] = [
+  {
+    key: "web",
+    keywords: ["react", "next", "component", "typescript", "css", "html", "javascript", "web", "frontend", "tailwind", "api"],
+    prompts: [
+      "Show me a clean reusable React component",
+      "How do I fix slow re-renders in React?",
+      "What's the best state library to use right now?",
+      "How do I optimize a Next.js app for SEO?",
+    ],
+  },
+  {
+    key: "python",
+    keywords: ["python", "sort", "algorithm", "pandas", "django", "flask", "script", "data", "automation"],
+    prompts: [
+      "Write a Python script to sort a list of dictionaries",
+      "Explain how this Python algorithm works",
+      "How do I speed up a slow Python loop?",
+      "Give me a pandas example for cleaning CSV data",
+    ],
+  },
+  {
+    key: "creative",
+    keywords: ["poem", "poetry", "story", "song", "rhyme", "tamil", "தமிழ்", "kavithai", "lyrics", "write me"],
+    prompts: [
+      "Write a short Tamil poem",
+      "Help me write a rhyming English poem",
+      "Turn this idea into a short story",
+      "Write lyrics for a simple song",
+    ],
+  },
+  {
+    key: "news",
+    keywords: ["news", "today", "latest", "stock", "weather", "market", "world", "update", "current"],
+    prompts: [
+      "What's the latest tech news today?",
+      "Summarize today's stock market moves",
+      "What are the top headlines right now?",
+      "Give me a quick weather outlook for today",
+    ],
+  },
+  {
+    key: "science",
+    keywords: ["physics", "quantum", "math", "science", "space", "biology", "explain", "how does", "what is"],
+    prompts: [
+      "Explain quantum computing in simple terms",
+      "How do black holes form?",
+      "Give me a clear analogy for how LLMs work",
+      "Break down a math concept with an example",
+    ],
+  },
+  {
+    key: "lifestyle",
+    keywords: ["recipe", "cooking", "travel", "health", "fitness", "diet", "food", "exercise"],
+    prompts: [
+      "Suggest an easy recipe with ingredients I already have",
+      "Give me a 20-minute workout plan",
+      "Plan a short holiday itinerary for me",
+      "What's a healthy, filling breakfast idea?",
+    ],
+  },
+];
+
 export const SYSTEM_PROMPT = `You are Meow AI, a friendly, helpful, and knowledgeable AI assistant.
 
 CRITICAL RULES - NEVER BREAK THESE:

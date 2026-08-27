@@ -7,6 +7,7 @@ import Sidebar from "@/components/Sidebar";
 import ChatWindow from "@/components/ChatWindow";
 import Settings from "@/components/Settings";
 import { Conversation, Message, Settings as SettingsType, DEFAULT_SETTINGS, FileAttachment, SearchSource } from "@/lib/types";
+import { DEFAULT_STARTER_PROMPTS, STARTER_TOPICS, StarterTopic } from "@/lib/constants";
 import {
   fetchConversations,
   fetchConversation,
@@ -371,6 +372,28 @@ export default function Home() {
     setIsLoading(false);
   }, []);
 
+  const buildStarterPrompts = useCallback((): string[] => {
+    const counts = new Map<string, number>();
+    for (const conv of conversations) {
+      for (const msg of conv.messages) {
+        if (msg.role === "user") {
+          const q = ` ${msg.content.toLowerCase()} `;
+          for (const topic of STARTER_TOPICS) {
+            if (topic.keywords.some((k) => q.includes(` ${k} `) || q.includes(k + " ") || q.includes(" " + k))) {
+              counts.set(topic.key, (counts.get(topic.key) || 0) + 1);
+            }
+          }
+        }
+      }
+    }
+    const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+    const top = ranked.slice(0, 2).map(([key]) => STARTER_TOPICS.find((t) => t.key === key)).filter(Boolean) as StarterTopic[];
+    if (top.length === 0) return DEFAULT_STARTER_PROMPTS;
+    const prompts: string[] = [];
+    top.forEach((t) => prompts.push(...t.prompts));
+    return prompts.slice(0, 4);
+  }, [conversations]);
+
   const buildSuggestions = (lastUserContent: string): string[] => {
     const q = lastUserContent.toLowerCase();
     if (/explain|what is|what's|how.*work|what are/i.test(q)) {
@@ -403,6 +426,7 @@ export default function Home() {
 
   const lastUserMsg = [...(activeConv?.messages || [])].reverse().find((m) => m.role === "user");
   const suggestions = lastUserMsg && !isLoading ? buildSuggestions(lastUserMsg.content) : [];
+  const emptyStatePrompts = buildStarterPrompts();
 
   const handleRename = async (id: string, newTitle: string) => {
     const trimmed = newTitle.trim();
@@ -496,6 +520,7 @@ export default function Home() {
         webSearch={settings.webSearch}
         onToggleWebSearch={handleToggleWebSearch}
         suggestions={suggestions}
+        emptyStatePrompts={emptyStatePrompts}
         voice={settings.voice}
         voiceLang={settings.voiceLang}
         voiceRate={settings.voiceRate}

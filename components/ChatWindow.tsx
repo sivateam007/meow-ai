@@ -23,6 +23,7 @@ interface ChatWindowProps {
   webSearch: boolean;
   onToggleWebSearch: () => void;
   suggestions?: string[];
+  emptyStatePrompts?: string[];
   voice?: string;
   voiceLang?: string;
   voiceRate?: number;
@@ -50,6 +51,7 @@ export default function ChatWindow({
   webSearch,
   onToggleWebSearch,
   suggestions,
+  emptyStatePrompts,
   voice,
   voiceLang,
   voiceRate,
@@ -149,9 +151,9 @@ export default function ChatWindow({
       >
         <div className="chat-bg min-h-full">
           <div className="chat-bg-overlay min-h-full">
-            <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
+            <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6 h-full min-h-full">
               {messages.length === 0 && !isLoading ? (
-                <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-2">
+                <div className="flex h-full min-h-full flex-col items-center justify-center text-center px-2">
                   <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#7c3aed]/20 flex items-center justify-center mb-4 sm:mb-6">
                     <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-full bg-[#7c3aed] flex items-center justify-center">
                       <svg className="w-6 h-6 sm:w-8 sm:h-8 text-white" fill="currentColor" viewBox="0 0 24 24"><ellipse cx="7" cy="5.5" rx="2" ry="2.5"/><ellipse cx="12" cy="4" rx="2" ry="2.5"/><ellipse cx="17" cy="5.5" rx="2" ry="2.5"/><path d="M4.5 13c0-3 2-5.5 5-6.5.8-.3 1.6-.3 2.5 0 3 1 5 3.5 5 6.5 0 2.5-1.5 4.5-3.5 5.5l-1.5.8c-.5.3-1 .5-1.5.5s-1-.2-1.5-.5l-1.5-.8c-2-1-3.5-3-3.5-5.5z"/></svg>
@@ -162,12 +164,12 @@ export default function ChatWindow({
                     Your friendly AI assistant. Ask me anything!
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 w-full max-w-lg">
-                    {[
+                    {(emptyStatePrompts || [
                       "Explain quantum computing",
                       "Write a Python sorting algorithm",
                       "Help me write a poem",
                       "What are the best practices for React?",
-                    ].map((prompt) => (
+                    ]).map((prompt) => (
                       <button
                         key={prompt}
                         onClick={() => onSend(prompt)}

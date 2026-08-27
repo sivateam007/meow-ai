@@ -20,12 +20,32 @@ interface SettingsProps {
   onClose: () => void;
 }
 
+interface VoiceOption {
+  name: string;
+  lang: string;
+}
+
 export default function Settings({ settings, onSave, onClose }: SettingsProps) {
   const [local, setLocal] = useState<SettingsType>({ ...settings });
   const [todayUsage, setTodayUsage] = useState("…");
+  const [voices, setVoices] = useState<VoiceOption[]>([]);
 
   useEffect(() => {
     setTodayUsage(getTodayUsage());
+  }, []);
+
+  useEffect(() => {
+    if (!("speechSynthesis" in window)) return;
+    const load = () => {
+      const opts: VoiceOption[] = window.speechSynthesis.getVoices().map((v) => ({
+        name: v.name,
+        lang: v.lang,
+      }));
+      setVoices(opts);
+    };
+    load();
+    window.speechSynthesis.addEventListener("voiceschanged", load);
+    return () => window.speechSynthesis.removeEventListener("voiceschanged", load);
   }, []);
 
   return (
@@ -93,6 +113,30 @@ export default function Settings({ settings, onSave, onClose }: SettingsProps) {
               <span>Short</span>
               <span>Long</span>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Read-aloud voice
+            </label>
+            <select
+              value={local.voice || ""}
+              onChange={(e) => {
+                const opt = voices.find((v) => v.name === e.target.value);
+                setLocal({ ...local, voice: e.target.value || undefined, voiceLang: opt?.lang || local.voiceLang });
+              }}
+              className="w-full bg-[#1e1b2e] border border-[#3b3558] rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-[#7c3aed] transition-colors"
+            >
+              <option value="">Automatic (match language)</option>
+              {voices.map((v) => (
+                <option key={v.name} value={v.name}>
+                  {v.lang} — {v.name}
+                </option>
+              ))}
+            </select>
+            {voices.length === 0 && (
+              <p className="mt-1.5 text-xs text-gray-500">No voices detected on this device.</p>
+            )}
           </div>
 
           <div className="border border-[#3b3558] rounded-xl px-4 py-3 bg-[#13111c]/60">

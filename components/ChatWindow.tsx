@@ -23,6 +23,8 @@ interface ChatWindowProps {
   webSearch: boolean;
   onToggleWebSearch: () => void;
   suggestions?: string[];
+  voice?: string;
+  voiceLang?: string;
 }
 
 const NEAR_BOTTOM_THRESHOLD = 120;
@@ -45,6 +47,8 @@ export default function ChatWindow({
   webSearch,
   onToggleWebSearch,
   suggestions,
+  voice,
+  voiceLang,
 }: ChatWindowProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
@@ -170,11 +174,14 @@ export default function ChatWindow({
                       key={i}
                       message={msg}
                       autoSpeak={liveMode && msg.role === "assistant" && i === lastMsgIndex && !isLoading}
+                      liveStreamSpeak={liveMode && msg.role === "assistant" && i === lastMsgIndex && isLoading}
                       canRegenerate={msg.role === "assistant" && i === lastMsgIndex && !isLoading}
                       onRegenerate={onRegenerate}
                       onEdit={onEdit ? () => onEdit(i) : undefined}
                       isStreaming={isLoading && msg.role === "assistant" && i === messages.length - 1}
                       isSearchingBubble={isSearching && i === messages.length - 1}
+                      voice={voice}
+                      voiceLang={voiceLang}
                     />
                   ))}
                   {!isLoading && suggestions && suggestions.length > 0 && messages.length > 0 && (

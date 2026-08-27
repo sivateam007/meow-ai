@@ -16,6 +16,9 @@ interface MessageBubbleProps {
   isLoading?: boolean;
   isStreaming?: boolean;
   isSearchingBubble?: boolean;
+  liveStreamSpeak?: boolean;
+  voice?: string;
+  voiceLang?: string;
 }
 
 const markdownComponents: Components = {
@@ -102,8 +105,37 @@ function arePropsEqual(prev: MessageBubbleProps, next: MessageBubbleProps) {
     prev.isStreaming === next.isStreaming &&
     prev.isSearchingBubble === next.isSearchingBubble &&
     prev.canRegenerate === next.canRegenerate &&
-    prev.autoSpeak === next.autoSpeak
+    prev.autoSpeak === next.autoSpeak &&
+    prev.liveStreamSpeak === next.liveStreamSpeak &&
+    prev.voice === next.voice &&
+    prev.voiceLang === next.voiceLang
   );
+}
+
+function detectLang(text: string): string {
+  const tamil = /[\u0B80-\u0BFF]/;
+  const devanagari = /[\u0900-\u097F]/;
+  const bengali = /[\u0980-\u09FF]/;
+  const telugu = /[\u0C00-\u0C7F]/;
+  const kannada = /[\u0C80-\u0CFF]/;
+  const malayalam = /[\u0D00-\u0D7F]/;
+  const arabic = /[\u0600-\u06FF]/;
+  const chinese = /[\u4E00-\u9FFF]/;
+  const japanese = /[\u3040-\u30FF]/;
+  const korean = /[\uAC00-\uD7AF]/;
+  const cyrillic = /[\u0400-\u04FF]/;
+  if (tamil.test(text)) return "ta-IN";
+  if (telugu.test(text)) return "te-IN";
+  if (kannada.test(text)) return "kn-IN";
+  if (malayalam.test(text)) return "ml-IN";
+  if (bengali.test(text)) return "bn-IN";
+  if (devanagari.test(text)) return "hi-IN";
+  if (arabic.test(text)) return "ar-SA";
+  if (chinese.test(text)) return "zh-CN";
+  if (japanese.test(text)) return "ja-JP";
+  if (korean.test(text)) return "ko-KR";
+  if (cyrillic.test(text)) return "ru-RU";
+  return "en-US";
 }
 
 function MessageBubble({
@@ -114,11 +146,23 @@ function MessageBubble({
   onEdit,
   isStreaming,
   isSearchingBubble,
+  liveStreamSpeak,
+  voice,
+  voiceLang,
 }: MessageBubbleProps) {
   const isUser = message.role === "user";
   const [speaking, setSpeaking] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const autoSpokenRef = useRef(false);
+
+  useEffect(() => {
+    if (!("speechSynthesis" in window)) return;
+    const load = () => setVoices(window.speechSynthesis.getVoices());
+    load();
+    window.speechSynthesis.addEventListener("voiceschanged", load);
+    return () => window.speechSynthesis.removeEventListener("voiceschanged", load);
+  }, []);
 
   const handleCopy = useCallback(async () => {
     await navigator.clipboard.writeText(markdownToPlainText(message.content));
@@ -126,26 +170,87 @@ function MessageBubble({
     setTimeout(() => setCopied(false), 2000);
   }, [message.content]);
 
+  const stripCode = (text: string): string =>
+    text
+      .replace(/```[\s\S]*?```/g, " ")
+      .replace(/`([^`]+)`/g, " ")
+      .replace(/[#*_~\[\]()>]/g, "")
+      .replace(/\n{2,}/g, ". ")
+      .trim();
+
   const speak = useCallback((text: string) => {
-    if (!("speechSynthesis" in window)) return;
+    if (!("speechSynthesis" in window) || !text.trim()) return;
     window.speechSynthesis.cancel();
 
-    const plainText = text.replace(/[#*`_~\[\]()>]/g, "").replace(/\n{2,}/g, ". ");
+    const plainText = stripCode(text);
+    if (!plainText.trim()) return;
+
     const utterance = new SpeechSynthesisUtterance(plainText);
     utterance.rate = 1;
     utterance.pitch = 1;
     utterance.volume = 1;
 
-    const voices = window.speechSynthesis.getVoices();
-    const preferred = voices.find((v) => v.name.includes("Google") || v.name.includes("Samantha") || v.lang.startsWith("en"));
+    const avail = voices.length > 0 ? voices : window.speechSynthesis.getVoices();
+    const detected = detectLang(plainText);
+    utterance.lang = detected;
+
+    const exactLang = detected.split("-")[0];
+    const preferred =
+      avail.find((v) => v.name === voice) ||
+      avail.find((v) => v.lang.toLowerCase().startsWith(detected.toLowerCase())) ||
+      avail.find((v) => v.lang.toLowerCase().startsWith(exactLang) && v.default) ||
+      avail.find((v) => v.lang.toLowerCase().startsWith(exactLang)) ||
+      (voiceLang
+        ? avail.find((v) => v.lang.toLowerCase() === voiceLang.toLowerCase())
+        : undefined) ||
+      avail.find((v) => v.lang.toLowerCase().startsWith("en"));
     if (preferred) utterance.voice = preferred;
+    if (voiceLang && !preferred) utterance.lang = voiceLang;
 
     utterance.onend = () => setSpeaking(false);
     utterance.onerror = () => setSpeaking(false);
 
     window.speechSynthesis.speak(utterance);
     setSpeaking(true);
-  }, []);
+  }, [voices, voice, voiceLang]);
+
+  const speakStream = useCallback((text: string) => {
+    if (!("speechSynthesis" in window) || !text.trim()) return;
+    const plainText = stripCode(text);
+    if (!plainText.trim()) return;
+
+    if (window.speechSynthesis.speaking) {
+      window.speechSynthesis.cancel();
+    }
+
+    const utterance = new SpeechSynthesisUtterance(plainText);
+    utterance.rate = 1;
+    utterance.pitch = 1;
+    utterance.volume = 1;
+
+    const avail = voices.length > 0 ? voices : window.speechSynthesis.getVoices();
+    const detected = detectLang(plainText);
+    utterance.lang = detected;
+
+    const exactLang = detected.split("-")[0];
+    const preferred =
+      avail.find((v) => v.name === voice) ||
+      avail.find((v) => v.lang.toLowerCase().startsWith(detected.toLowerCase())) ||
+      avail.find((v) => v.lang.toLowerCase().startsWith(exactLang) && v.default) ||
+      avail.find((v) => v.lang.toLowerCase().startsWith(exactLang)) ||
+      (voiceLang
+        ? avail.find((v) => v.lang.toLowerCase() === voiceLang.toLowerCase())
+        : undefined) ||
+      avail.find((v) => v.lang.toLowerCase().startsWith("en"));
+    if (preferred) utterance.voice = preferred;
+    if (voiceLang && !preferred) utterance.lang = voiceLang;
+
+    utterance.onend = () => setSpeaking(false);
+    utterance.onerror = () => setSpeaking(false);
+
+    window.speechSynthesis.speak(utterance);
+    setSpeaking(true);
+  }, [voices, voice, voiceLang]);
 
   useEffect(() => {
     if (autoSpeak && !autoSpokenRef.current && message.content) {
@@ -156,6 +261,12 @@ function MessageBubble({
       autoSpokenRef.current = false;
     }
   }, [autoSpeak, message.content, speak]);
+
+  useEffect(() => {
+    if (!liveStreamSpeak || !isStreaming || !message.content) return;
+    const t = setTimeout(() => speakStream(message.content), 700);
+    return () => clearTimeout(t);
+  }, [liveStreamSpeak, isStreaming, message.content, speakStream]);
 
   const handleSpeak = useCallback(() => {
     if (speaking) {

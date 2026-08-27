@@ -478,6 +478,8 @@ export default function Home() {
         webSearch={settings.webSearch}
         onToggleWebSearch={handleToggleWebSearch}
         suggestions={suggestions}
+        voice={settings.voice}
+        voiceLang={settings.voiceLang}
       />
       {settingsOpen && (
         <Settings

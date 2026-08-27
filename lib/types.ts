@@ -25,6 +25,8 @@ export interface Settings {
   temperature: number;
   maxTokens: number;
   webSearch: boolean;
+  voice?: string;
+  voiceLang?: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {

@@ -210,7 +210,7 @@ function MessageBubble({
 
     utterance.onend = () => { setSpeaking(false); setPaused(false); };
     utterance.onerror = () => { setSpeaking(false); setPaused(false); };
-    utterance.oncancel = () => { setSpeaking(false); setPaused(false); };
+    utterance.addEventListener("cancel", () => { setSpeaking(false); setPaused(false); });
 
     window.speechSynthesis.speak(utterance);
     setSpeaking(true);
@@ -250,7 +250,7 @@ function MessageBubble({
 
     utterance.onend = () => { setSpeaking(false); setPaused(false); };
     utterance.onerror = () => { setSpeaking(false); setPaused(false); };
-    utterance.oncancel = () => { setSpeaking(false); setPaused(false); };
+    utterance.addEventListener("cancel", () => { setSpeaking(false); setPaused(false); });
 
     window.speechSynthesis.speak(utterance);
     setSpeaking(true);

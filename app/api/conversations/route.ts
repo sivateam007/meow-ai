@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { auth } from "@/lib/auth";
+import { auth, isUserRevoked } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 
@@ -22,6 +22,9 @@ export async function GET() {
     const session = await auth();
     if (!session?.user?.email) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    }
+    if (await isUserRevoked(session.user.email)) {
+      return new Response(JSON.stringify({ error: "Access revoked" }), { status: 403 });
     }
 
     const conversations = await db.conversation.findMany({
@@ -54,6 +57,9 @@ export async function POST(request: NextRequest) {
     const session = await auth();
     if (!session?.user?.email) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    }
+    if (await isUserRevoked(session.user.email)) {
+      return new Response(JSON.stringify({ error: "Access revoked" }), { status: 403 });
     }
 
     let body: { title?: string; messages?: unknown[] };

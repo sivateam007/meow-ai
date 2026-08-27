@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { auth } from "@/lib/auth";
+import { auth, isUserRevoked } from "@/lib/auth";
 import { webSearch, formatSearchResults } from "@/lib/search";
 import { rateLimit } from "@/lib/ratelimit";
 import { isAdmin } from "@/lib/admin";
@@ -217,6 +217,14 @@ export async function POST(request: NextRequest) {
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
         { status: 401, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const revoked = await isUserRevoked(session.user.email);
+    if (revoked) {
+      return new Response(
+        JSON.stringify({ error: "Access revoked" }),
+        { status: 403, headers: { "Content-Type": "application/json" } }
       );
     }
 

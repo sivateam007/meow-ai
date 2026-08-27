@@ -10,8 +10,7 @@ async function verifyGoogleIdToken(idToken: string): Promise<{
   name: string;
   picture: string;
   emailVerified: boolean;
-} | null> {
-  try {
+} | null> {  try {
     const res = await fetch(
       `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`
     );
@@ -121,3 +120,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
 });
+
+/**
+ * Returns true if the user is currently revoked (in the DB). Runs in Node runtime only.
+ * Admins (env-based) and users not found in the DB are treated as NOT revoked.
+ */
+export async function isUserRevoked(email: string): Promise<boolean> {
+  try {
+    const user = await db.appUser.findUnique({ where: { email: email.toLowerCase() } });
+    return user?.status === "revoked";
+  } catch {
+    return false;
+  }
+}

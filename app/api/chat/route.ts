@@ -4,6 +4,7 @@ import { webSearch, formatSearchResults } from "@/lib/search";
 import { rateLimit } from "@/lib/ratelimit";
 import { isAdmin } from "@/lib/admin";
 import { SYSTEM_PROMPT } from "@/lib/constants";
+import { getModelById } from "@/lib/types";
 
 interface ApiAttachment {
   name: string;
@@ -88,7 +89,7 @@ function isRetryable(status: number, message: string): boolean {
   return false;
 }
 
-function buildApiMessages(messages: ApiMessage[]): {
+function buildApiMessages(messages: ApiMessage[], modelId: string): {
   finalMessages: { role: string; content: string }[];
 } {
   const nonSystem = messages.filter((m) => m.role !== "system");
@@ -131,7 +132,10 @@ function buildApiMessages(messages: ApiMessage[]): {
     }
   }
 
-  const finalMessages = [{ role: "system", content: SYSTEM_PROMPT }, ...kept];
+  const cat = getModelById(modelId);
+  const personalityPrompt = `${SYSTEM_PROMPT}\n\nYOUR CAT PERSONA: You are ${cat.name} (${cat.personality}) — let this personality lightly influence your tone and style while always staying the helpful assistant "Meow AI" described above.`;
+
+  const finalMessages = [{ role: "system", content: personalityPrompt }, ...kept];
   return { finalMessages };
 }
 
@@ -275,7 +279,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const { finalMessages } = buildApiMessages(workingMessages);
+    const { finalMessages } = buildApiMessages(workingMessages, settings?.model || "big-pickle");
     const temperature = Math.min(2, Math.max(0, settings?.temperature ?? 0.7));
     const maxTokens = Math.min(8192, Math.max(1, settings?.maxTokens ?? 2048));
     const requestedModel = settings?.model || "big-pickle";

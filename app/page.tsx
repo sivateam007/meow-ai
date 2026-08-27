@@ -46,7 +46,6 @@ export default function Home() {
   const [mounted, setMounted] = useState(false);
   const [editingMsg, setEditingMsg] = useState<{ index: number; content: string; attachments?: FileAttachment[] } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push("/login");
@@ -122,6 +121,7 @@ export default function Home() {
     abortRef.current = controller;
 
     let assistantContent = "";
+    let usedModel: string | undefined;
     let usage: { promptTokens?: number; completionTokens?: number } | null = null;
     let flushTimer: ReturnType<typeof setTimeout> | null = null;
     const assistantTimestamp = Date.now();
@@ -143,6 +143,7 @@ export default function Home() {
             role: "assistant",
             content: assistantContent,
             timestamp: assistantTimestamp,
+            ...(usedModel ? { model: usedModel } : {}),
           };
         }
         return { ...prev, messages: ms };
@@ -214,6 +215,7 @@ export default function Home() {
                   continue;
                 }
                 if (parsed.model) {
+                  usedModel = parsed.model;
                   continue;
                 }
                 if (parsed.thinking) {
@@ -241,7 +243,7 @@ export default function Home() {
 
       recordUsage(usage?.promptTokens, usage?.completionTokens);
 
-      const finalMessages = [...msgs, { role: "assistant" as const, content: assistantContent, timestamp: assistantTimestamp }];
+      const finalMessages = [...msgs, { role: "assistant" as const, content: assistantContent, timestamp: assistantTimestamp, ...(usedModel ? { model: usedModel } : {}) }];
       await updateConversationAPI(conv.id, {
         title,
         messages: finalMessages.map((m) => ({
@@ -249,6 +251,7 @@ export default function Home() {
           content: m.content,
           timestamp: m.timestamp,
           ...(m.attachments ? { attachments: m.attachments } : {}),
+          ...(m.model ? { model: m.model } : {}),
         })),
       });
       const finalConv = { ...conv, title, messages: finalMessages, updatedAt: Date.now() };
@@ -263,7 +266,7 @@ export default function Home() {
         const hasPartial = assistantContent.trim().length > 0;
         if (hasPartial || !isRegenerate) {
           const persistedMessages = hasPartial
-            ? [...msgs, { role: "assistant" as const, content: assistantContent, timestamp: assistantTimestamp }]
+            ? [...msgs, { role: "assistant" as const, content: assistantContent, timestamp: assistantTimestamp, ...(usedModel ? { model: usedModel } : {}) }]
             : msgs;
           setActiveConv({ ...conv, title, messages: persistedMessages, updatedAt: Date.now() });
           await updateConversationAPI(conv.id, {
@@ -272,6 +275,7 @@ export default function Home() {
               content: m.content,
               timestamp: m.timestamp,
               ...(m.attachments ? { attachments: m.attachments } : {}),
+              ...(m.model ? { model: m.model } : {}),
             })),
           });
           refreshConversations();
@@ -286,8 +290,8 @@ export default function Home() {
         errorText = error.message;
       }
       const finalAssistant: Message = hasPartial
-        ? { role: "assistant", content: `${assistantContent}\n\n_(interrupted — ${errorText})_`, timestamp: assistantTimestamp }
-        : { role: "assistant", content: errorText, timestamp: Date.now() };
+        ? { role: "assistant", content: `${assistantContent}\n\n_(interrupted — ${errorText})_`, timestamp: assistantTimestamp, ...(usedModel ? { model: usedModel } : {}) }
+        : { role: "assistant", content: errorText, timestamp: Date.now(), ...(usedModel ? { model: usedModel } : {}) };
 
       const errorConv = {
         ...conv,
@@ -300,6 +304,7 @@ export default function Home() {
           role: m.role,
           content: m.content,
           timestamp: m.timestamp,
+          ...(m.model ? { model: m.model } : {}),
         })),
       });
       return assistantContent;
@@ -421,6 +426,7 @@ export default function Home() {
         content: m.content,
         timestamp: m.timestamp,
         ...(m.attachments ? { attachments: m.attachments } : {}),
+        ...(m.model ? { model: m.model } : {}),
       })),
     });
     refreshConversations();

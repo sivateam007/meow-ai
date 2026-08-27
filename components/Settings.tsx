@@ -52,6 +52,9 @@ export default function Settings({ settings, onSave, onClose }: SettingsProps) {
                 <option key={m.id} value={m.id}>{m.name}</option>
               ))}
             </select>
+            <p className="mt-1.5 text-xs text-gray-500">
+              {AVAILABLE_MODELS.find((m) => m.id === local.model)?.personality}
+            </p>
           </div>
 
           <div>

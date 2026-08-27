@@ -41,6 +41,7 @@ export async function GET(
         content: m.content,
         timestamp: Number(m.timestamp),
         attachments: m.attachments || undefined,
+        model: m.model || undefined,
       })),
     }));
   } catch {
@@ -88,6 +89,7 @@ export async function PUT(
         content: typeof m.content === "string" ? m.content.substring(0, MAX_CONTENT) : "",
         timestamp: typeof m.timestamp === "number" ? m.timestamp : Date.now(),
         attachments: m.attachments as Prisma.InputJsonValue | undefined,
+        model: typeof m.model === "string" ? m.model : undefined,
       }));
       await db.$transaction([
         db.message.deleteMany({ where: { conversationId: id } }),
@@ -116,6 +118,7 @@ export async function PUT(
         content: m.content,
         timestamp: Number(m.timestamp),
         attachments: m.attachments || undefined,
+        model: m.model || undefined,
       })),
     }));
   } catch {

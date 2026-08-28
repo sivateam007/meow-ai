@@ -97,7 +97,9 @@ export default function ChatWindow({
   const canRegenerate = lastMsgIndex >= 0 && lastMsgIndex === messages.length - 1;
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 min-w-0 relative">
+    <div className="flex-1 flex flex-col min-h-0 min-w-0 relative isolate">
+      <div className="chat-bg fixed inset-0 -z-10" aria-hidden="true" />
+      <div className="chat-bg-overlay fixed inset-0 -z-10" aria-hidden="true" />
       <header className="flex items-center justify-between px-3 sm:px-4 py-3 border-b border-[#3b3558] bg-[#13111c]/80 backdrop-blur-sm flex-shrink-0">
         <div className="flex items-center gap-2 sm:gap-3">
           <button onClick={onOpenSidebar} className="text-gray-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-[#3d3760]">
@@ -149,8 +151,6 @@ export default function ChatWindow({
         onScroll={handleScroll}
         className="relative flex-1 h-full overflow-y-auto"
       >
-        <div className="chat-bg fixed inset-0 z-0" aria-hidden="true" />
-        <div className="chat-bg-overlay fixed inset-0 z-0" aria-hidden="true" />
         <div className="relative z-10 max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6 min-h-full flex flex-col">
           {messages.length === 0 && !isLoading ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center px-2">

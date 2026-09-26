@@ -57,23 +57,41 @@ MEOW_AI_ALLOWED_EMAILS= # optional comma-separated allowlist; unset = invite-onl
 
 ### Supabase setup
 
+**Required for every sign-in method**
+
 1. **Project Settings → Data API** → copy the **Project URL** and the
    **publishable / anon key** into `NEXT_PUBLIC_SUPABASE_URL` and
    `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Copy the **service role** key into
    `SUPABASE_SERVICE_ROLE_KEY` (optional).
-2. **Authentication → Providers → Email** → enable **Email** with
-   "Confirm email" turned **off**, so new accounts can sign in immediately.
-3. **Authentication → Users → Add user** → create the first account, set a
+2. **Authentication → URL Configuration → Redirect URLs** → add your production
+   origin, e.g. `https://www.meowai.work.gd/login`. Google sign-in returns
+   there, and Supabase rejects the redirect if it is not allow-listed.
+
+**Email + password**
+
+3. **Authentication → Providers → Email** → enable, with "Confirm email" turned
+   **off** so accounts can sign in immediately.
+4. **Authentication → Users → Add user** → create the first account, set a
    password, and tick **Auto Confirm User**.
 
-That is the whole setup. There is no OAuth client, no authorized-domain list and
-no test-user list to maintain — one service handles both auth and the database.
+**Google (optional, in addition to the above)**
 
-The browser SDK is only used to exchange an email + password for an access
-token. All data access goes through our own API routes, and the session is a
-`jose`-signed httpOnly cookie that edge middleware can verify without a database
-round-trip. Revocation is still enforced per-request against the `AppUser`
-table.
+5. Google Cloud Console → **Credentials → Create credentials → OAuth client ID →
+   Web application**. Add
+   `https://<project-ref>.supabase.co/auth/v1/callback` under **Authorized
+   redirect URIs**.
+6. **Google Auth Platform → Audience** → while the app is in *Testing*, add each
+   allowed Gmail under **Test users**. Publishing the app removes this limit.
+7. **Authentication → Providers → Google** in Supabase → paste the client ID
+   and client secret → **Save**.
+
+Google and email/password are independent: if the Google provider is left
+unconfigured the button fails while password sign-in keeps working.
+
+The browser SDK is only used to obtain an access token. All data access goes
+through our own API routes, and the session is a `jose`-signed httpOnly cookie
+that edge middleware can verify without a database round-trip. Revocation is
+still enforced per-request against the `AppUser` table.
 
 ### Applying the schema
 

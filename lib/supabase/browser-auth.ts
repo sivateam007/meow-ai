@@ -3,15 +3,17 @@
 import { getSupabaseClient } from "./client";
 
 /**
- * Shared sign-in flow for the login and access-denied pages.
+ * Sign-in flows, shared by the login and access-denied pages.
  *
- * Supabase Auth exchanges the email + password for an access token, which is
- * then POSTed to /api/auth/session. That route verifies the token, applies the
- * invite-only rules and sets the httpOnly session cookie.
+ * Two providers are supported:
  *
- * Supabase (rather than a third-party provider) also means there is no OAuth
- * client, authorized-domain list or test-user list to configure: one service,
- * not two.
+ *   Password — Supabase Auth exchanges email + password for an access token.
+ *   Google   — the browser is redirected to Google and back. The return trip
+ *              lands on the page with tokens in the URL, which
+ *              `completeGoogleRedirect()` picks up and exchanges.
+ *
+ * Either way the access token is POSTed to /api/auth/session, which verifies
+ * it, applies the invite-only rules and sets the httpOnly session cookie.
  */
 
 export type SignInOutcome =
@@ -43,10 +45,49 @@ function friendlySupabaseError(message: string): string {
   if (/fetch|network|failed to fetch/i.test(text)) {
     return "Network error. Check your connection and try again.";
   }
+  if (/popup|window\.opener|cross-origin/i.test(text)) {
+    return "Could not open the Google sign-in window. Allow popups for this site and try again.";
+  }
 
   // Always surface the raw message so a misconfiguration is identifiable from
   // the UI alone, without opening developer tools.
   return text || "Sign-in failed.";
+}
+
+/** Swaps a Supabase access token for our own session cookie. */
+async function exchangeAccessToken(accessToken: string): Promise<SignInOutcome> {
+  let response: Response;
+  try {
+    response = await fetch("/api/auth/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accessToken }),
+    });
+  } catch {
+    return { ok: false, reason: "error", message: "Could not reach the server. Please try again." };
+  }
+
+  const data = (await response.json().catch(() => ({}))) as {
+    reason?: string;
+    error?: string;
+  };
+
+  if (response.ok) return { ok: true };
+
+  if (response.status === 403) {
+    if (data?.reason === "revoked") {
+      return { ok: false, reason: "revoked", message: "Your access has been revoked." };
+    }
+    if (data?.reason === "pending") {
+      return { ok: false, reason: "pending", message: "An access request has been sent to the admin." };
+    }
+  }
+
+  return {
+    ok: false,
+    reason: "error",
+    message: data?.error || "Sign-in failed. Please try again.",
+  };
 }
 
 export async function signInWithPassword(
@@ -80,36 +121,53 @@ export async function signInWithPassword(
     return { ok: false, reason: "error", message: friendlySupabaseError(message) };
   }
 
-  let response: Response;
+  return exchangeAccessToken(accessToken);
+}
+
+/**
+ * Hands the browser to Google. On success the page navigates away, so this
+ * never resolves on the happy path.
+ */
+export async function startGoogleSignIn(): Promise<SignInOutcome> {
   try {
-    response = await fetch("/api/auth/session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ accessToken }),
+    const redirectTo =
+      typeof window !== "undefined" ? `${window.location.origin}/login` : undefined;
+
+    const { error } = await getSupabaseClient().auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo, scopes: "openid email profile" },
     });
-  } catch {
-    return { ok: false, reason: "error", message: "Could not reach the server. Please try again." };
+
+    if (error) {
+      return { ok: false, reason: "error", message: friendlySupabaseError(error.message) };
+    }
+
+    return { ok: true };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Google sign-in failed.";
+    console.error("[auth] google sign-in failed", e);
+    return { ok: false, reason: "error", message: friendlySupabaseError(message) };
+  }
+}
+
+/**
+ * Finishes a Google sign-in after the browser returns to /login.
+ *
+ * Returns null when the page was not reached via a Google redirect, so the
+ * caller can leave the form alone.
+ */
+export async function completeGoogleRedirect(): Promise<SignInOutcome | null> {
+  let accessToken: string | undefined;
+
+  try {
+    const { data } = await getSupabaseClient().auth.getSession();
+    accessToken = data.session?.access_token;
+  } catch (e) {
+    console.error("[auth] could not read the google callback", e);
+    return null;
   }
 
-  const data = (await response.json().catch(() => ({}))) as {
-    reason?: string;
-    error?: string;
-  };
+  if (!accessToken) return null;
 
-  if (response.ok) return { ok: true };
-
-  if (response.status === 403) {
-    if (data?.reason === "revoked") {
-      return { ok: false, reason: "revoked", message: "Your access has been revoked." };
-    }
-    if (data?.reason === "pending") {
-      return { ok: false, reason: "pending", message: "An access request has been sent to the admin." };
-    }
-  }
-
-  return {
-    ok: false,
-    reason: "error",
-    message: data?.error || "Sign-in failed. Please try again.",
-  };
+  return exchangeAccessToken(accessToken);
 }

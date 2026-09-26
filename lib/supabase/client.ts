@@ -33,11 +33,13 @@ export function getSupabaseClient(): SupabaseClient {
 
   cached = createClient(url, anonKey, {
     auth: {
-      // We issue our own long-lived session cookie, so there is nothing to
-      // persist or refresh on the client.
+      // Google sign-in returns to us with tokens in the URL, so the client must
+      // read them on load. We exchange them for our own httpOnly cookie
+      // immediately and then discard them, so there is nothing to persist or
+      // refresh on the client.
+      detectSessionInUrl: true,
       persistSession: false,
       autoRefreshToken: false,
-      detectSessionInUrl: false,
     },
   });
   return cached;

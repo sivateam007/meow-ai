@@ -1,25 +1,10 @@
 import { NextRequest } from "next/server";
-import { auth } from "@/lib/auth";
+import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { rateLimit } from "@/lib/ratelimit";
+import { isAdminEmail, isAllowedEmail } from "@/lib/access";
 
-export function isAdminEmail(email: string): boolean {
-  const admins = process.env.MEOW_AI_ADMIN_EMAILS;
-  if (!admins) return false;
-  return admins
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .includes(email.toLowerCase());
-}
-
-export function isAllowedEmail(email: string): boolean {
-  const allowed = process.env.MEOW_AI_ALLOWED_EMAILS;
-  if (!allowed) return false;
-  return allowed
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .includes(email.toLowerCase());
-}
+export { isAdminEmail, isAllowedEmail };
 
 export async function isAdmin(email: string): Promise<boolean> {
   if (isAdminEmail(email)) return true;
@@ -35,8 +20,8 @@ export async function requireAdmin(
   request: NextRequest,
   opts?: { max?: number; windowMs?: number }
 ): Promise<{ email: string } | Response> {
-  const session = await auth();
-  if (!session?.user?.email) {
+  const session = await getSessionUser();
+  if (!session?.email) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
       headers: { "Content-Type": "application/json" },
@@ -48,14 +33,14 @@ export async function requireAdmin(
       headers: { "Content-Type": "application/json" },
     });
   }
-  const admin = await isAdmin(session.user.email);
+  const admin = await isAdmin(session.email);
   if (!admin) {
     return new Response(JSON.stringify({ error: "Forbidden" }), {
       status: 403,
       headers: { "Content-Type": "application/json" },
     });
   }
-  const email = session.user.email;
+  const email = session.email;
   if (!rateLimit(`admin:${email.toLowerCase()}`, opts?.max ?? 120, opts?.windowMs)) {
     return new Response(
       JSON.stringify({ error: "Too many requests. Please wait and try again later." }),

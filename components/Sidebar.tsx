@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useRef } from "react";
-import { useSession, signOut } from "next-auth/react";
+import { useAuth } from "@/app/providers";
 import { Conversation } from "@/lib/types";
 
 interface SidebarProps {
@@ -27,7 +27,7 @@ export default function Sidebar({
   isOpen,
   onClose,
 }: SidebarProps) {
-  const { data: session } = useSession();
+  const { user, signOut } = useAuth();
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [search, setSearch] = useState("");
@@ -246,20 +246,21 @@ export default function Sidebar({
 
         <div className="p-4 border-t border-[#3b3558]">
           <div className="flex items-center gap-3 mb-2">
-            {session?.user?.image ? (
+            {user?.image ? (
               <img
-                src={session.user.image}
+                src={user.image}
                 alt="avatar"
                 className="w-8 h-8 rounded-full border border-[#3b3558]"
+                referrerPolicy="no-referrer"
               />
             ) : (
               <div className="w-8 h-8 rounded-full bg-[#7c3aed] flex items-center justify-center text-xs font-bold">
-                {session?.user?.name?.[0] || "U"}
+                {user?.name?.[0] || "U"}
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-gray-200 truncate">{session?.user?.name || "User"}</p>
-              <p className="text-xs text-gray-600 truncate">{session?.user?.email}</p>
+              <p className="text-sm text-gray-200 truncate">{user?.name || "User"}</p>
+              <p className="text-xs text-gray-600 truncate">{user?.email}</p>
             </div>
           </div>
           <div className="flex items-center justify-between">
@@ -276,7 +277,7 @@ export default function Sidebar({
                 </a>
               )}
               <button
-                onClick={() => signOut({ callbackUrl: "/login" })}
+                onClick={() => signOut()}
                 className="text-xs text-gray-500 hover:text-red-400 transition-colors"
               >
                 Sign out

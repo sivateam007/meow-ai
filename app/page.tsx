@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useSession } from "next-auth/react";
+import { useAuth } from "./providers";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import ChatWindow from "@/components/ChatWindow";
@@ -34,7 +34,7 @@ function recordUsage(promptTokens?: number, completionTokens?: number) {
 }
 
 export default function Home() {
-  const { data: session, status } = useSession();
+  const { user, status } = useAuth();
   const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
@@ -487,7 +487,7 @@ export default function Home() {
     );
   }
 
-  if (!session) return null;
+  if (!user) return null;
 
   return (
     <div className="h-screen flex overflow-hidden bg-[#13111c]">

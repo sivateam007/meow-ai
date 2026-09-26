@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { auth, isUserRevoked } from "@/lib/auth";
+import { getSessionUser, isUserRevoked } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 
@@ -13,17 +13,17 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.email) {
+    const session = await getSessionUser();
+    if (!session) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
     }
-    if (await isUserRevoked(session.user.email)) {
+    if (await isUserRevoked(session.email)) {
       return new Response(JSON.stringify({ error: "Access revoked" }), { status: 403 });
     }
 
     const { id } = await params;
     const conversation = await db.conversation.findFirst({
-      where: { id, userEmail: session.user.email },
+      where: { id, userEmail: session.email },
       include: { messages: { orderBy: { timestamp: "asc" } } },
     });
 
@@ -56,11 +56,11 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.email) {
+    const session = await getSessionUser();
+    if (!session) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
     }
-    if (await isUserRevoked(session.user.email)) {
+    if (await isUserRevoked(session.email)) {
       return new Response(JSON.stringify({ error: "Access revoked" }), { status: 403 });
     }
 
@@ -74,7 +74,7 @@ export async function PUT(
     }
 
     const existing = await db.conversation.findFirst({
-      where: { id, userEmail: session.user.email },
+      where: { id, userEmail: session.email },
     });
 
     if (!existing) {
@@ -137,17 +137,17 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.email) {
+    const session = await getSessionUser();
+    if (!session) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
     }
-    if (await isUserRevoked(session.user.email)) {
+    if (await isUserRevoked(session.email)) {
       return new Response(JSON.stringify({ error: "Access revoked" }), { status: 403 });
     }
 
     const { id } = await params;
     const existing = await db.conversation.findFirst({
-      where: { id, userEmail: session.user.email },
+      where: { id, userEmail: session.email },
     });
 
     if (!existing) {

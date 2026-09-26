@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { auth, isUserRevoked } from "@/lib/auth";
+import { getSessionUser, isUserRevoked } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 
@@ -22,16 +22,16 @@ function sanitizeMessages(raw: Record<string, unknown>[]): Prisma.MessageUncheck
 
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session?.user?.email) {
+    const session = await getSessionUser();
+    if (!session) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
     }
-    if (await isUserRevoked(session.user.email)) {
+    if (await isUserRevoked(session.email)) {
       return new Response(JSON.stringify({ error: "Access revoked" }), { status: 403 });
     }
 
     const conversations = await db.conversation.findMany({
-      where: { userEmail: session.user.email },
+      where: { userEmail: session.email },
       orderBy: { updatedAt: "desc" },
       include: { messages: { orderBy: { timestamp: "asc" } } },
     });
@@ -60,11 +60,11 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.email) {
+    const session = await getSessionUser();
+    if (!session) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
     }
-    if (await isUserRevoked(session.user.email)) {
+    if (await isUserRevoked(session.email)) {
       return new Response(JSON.stringify({ error: "Access revoked" }), { status: 403 });
     }
 
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
 
     const conversation = await db.conversation.create({
       data: {
-        userEmail: session.user.email,
+        userEmail: session.email,
         title,
         messages: messagesData
           ? { create: messagesData }

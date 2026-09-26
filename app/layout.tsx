@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { auth } from "@/lib/auth";
+import { getSessionUser } from "@/lib/auth";
 import Providers from "./providers";
 import "./globals.css";
 
@@ -20,12 +20,12 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const session = await auth();
+  const user = await getSessionUser();
 
   return (
     <html lang="en" className="h-full antialiased">
       <body className="min-h-full flex flex-col">
-        <Providers session={session}>{children}</Providers>
+        <Providers initialUser={user}>{children}</Providers>
       </body>
     </html>
   );

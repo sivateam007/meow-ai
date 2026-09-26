@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { auth, isUserRevoked } from "@/lib/auth";
+import { getSessionUser, isUserRevoked } from "@/lib/auth";
 import { webSearch, formatSearchResults } from "@/lib/search";
 import { rateLimit } from "@/lib/ratelimit";
 import { isAdmin } from "@/lib/admin";
@@ -216,15 +216,15 @@ function sleep(ms: number): Promise<void> {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.email) {
+    const session = await getSessionUser();
+    if (!session) {
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
         { status: 401, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    const revoked = await isUserRevoked(session.user.email);
+    const revoked = await isUserRevoked(session.email);
     if (revoked) {
       return new Response(
         JSON.stringify({ error: "Access revoked" }),
@@ -232,8 +232,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const admin = await isAdmin(session.user.email);
-    if (!admin && !rateLimit(`chat:${session.user.email.toLowerCase()}`)) {
+    const admin = await isAdmin(session.email);
+    if (!admin && !rateLimit(`chat:${session.email.toLowerCase()}`)) {
       return new Response(
         JSON.stringify({ error: "Too many requests. Please wait and try again later." }),
         { status: 429, headers: { "Content-Type": "application/json" } }

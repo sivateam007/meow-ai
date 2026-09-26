@@ -65,8 +65,8 @@ function friendlyFirebaseError(e: unknown): string {
 
   // Always append the raw code so a misconfiguration is identifiable from the
   // UI alone, without opening developer tools.
-  if (code) return `${known[code] ?? detail || "Sign-in failed."} (${code})`;
-  return detail || "Sign-in failed. Please try again.";
+  const base = detail || "Sign-in failed.";
+  return code ? `${base} (${code})` : base;
 }
 
 async function getCredential(): Promise<UserCredential> {

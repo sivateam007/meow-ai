@@ -41,17 +41,32 @@ export type SignInOutcome =
   | { ok: false; reason: "error"; message: string };
 
 function friendlyFirebaseError(e: unknown): string {
-  const code = (e as { code?: string })?.code || "";
-  if (code === "auth/popup-closed-by-user") return "Sign-in was cancelled.";
-  if (code === "auth/popup-blocked") return "Your browser blocked the sign-in popup.";
-  if (code === "auth/unauthorized-domain") {
-    return "This domain is not authorised for sign-in. Add it under Authentication → Settings → Authorized domains.";
-  }
-  if (code === "auth/network-request-failed") return "Network error. Check your connection.";
-  if (code === "auth/account-exists-with-different-credential") {
-    return "That account is already linked to a different sign-in method.";
-  }
-  return (e as Error)?.message || "Sign-in failed. Please try again.";
+  const err = e as { code?: string; message?: string; customData?: { message?: string } };
+  const code = err?.code || "";
+  const detail = err?.customData?.message || err?.message || "";
+
+  const known: Record<string, string> = {
+    "auth/popup-closed-by-user": "Sign-in was cancelled.",
+    "auth/popup-blocked": "Your browser blocked the sign-in popup. Allow popups for this site and try again.",
+    "auth/unauthorized-domain":
+      "This domain is not authorised. Add it under Firebase → Authentication → Settings → Authorized domains.",
+    "auth/network-request-failed": "Network error. Check your connection and try again.",
+    "auth/operation-not-allowed":
+      "Google sign-in is disabled. Enable it under Firebase → Authentication → Sign-in method → Google.",
+    "auth/internal-error":
+      "Firebase rejected the sign-in. Usually an authorized-domain or API-key restriction problem — check Firebase → Authentication → Settings → Authorized domains.",
+    "auth/account-exists-with-different-credential":
+      "That account is already linked to a different sign-in method.",
+    "auth/api-key-not-valid.-please-pass-a-valid-api-key.":
+      "The Firebase API key is invalid or restricted in Google Cloud Console → APIs & Services → Credentials.",
+  };
+
+  if (known[code]) return known[code];
+
+  // Always append the raw code so a misconfiguration is identifiable from the
+  // UI alone, without opening developer tools.
+  if (code) return `${known[code] ?? detail || "Sign-in failed."} (${code})`;
+  return detail || "Sign-in failed. Please try again.";
 }
 
 async function getCredential(): Promise<UserCredential> {
@@ -79,6 +94,9 @@ export async function signInWithGoogle(): Promise<SignInOutcome> {
     const credential = await getCredential();
     idToken = await credential.user.getIdToken();
   } catch (e) {
+    const err = e as { code?: string };
+    console.error("[auth] firebase sign-in failed", e);
+    if (err?.code) console.error("[auth] firebase error code:", err.code);
     return { ok: false, reason: "error", message: friendlyFirebaseError(e) };
   }
 

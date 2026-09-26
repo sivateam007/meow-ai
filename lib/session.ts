@@ -4,8 +4,8 @@ import { SignJWT, jwtVerify } from "jose";
  * Edge-safe session handling.
  *
  * This module is imported by `middleware.ts`, which runs on the edge runtime.
- * It therefore must NOT import Prisma, `firebase-admin`, or anything Node-only.
- * The only dependency is `jose`, which is Web Crypto based.
+ * It therefore must NOT import Prisma, `@supabase/supabase-js`, or anything
+ * Node-only. The only dependency is `jose`, which is Web Crypto based.
  *
  * The session cookie is a self-contained HS256 JWT. Middleware can verify the
  * signature without touching the database, which keeps route protection working

@@ -19,8 +19,8 @@ A friendly AI chat assistant with a cat theme, built with Next.js.
 ## Tech Stack
 
 - **Frontend:** Next.js 15, React 19, Tailwind CSS 3
-- **Auth:** Firebase Authentication (Google provider) + a `jose` session cookie
-- **Database:** PostgreSQL via Prisma
+- **Auth:** Supabase Auth (email + password) + a `jose` session cookie
+- **Database:** PostgreSQL via Prisma (Supabase or any Postgres host)
 - **Deployment:** Render
 
 ## Getting Started
@@ -37,17 +37,17 @@ A friendly AI chat assistant with a cat theme, built with Next.js.
 DATABASE_URL=
 DIRECT_URL=
 
-# Firebase Auth — server side (verify ID tokens, set the session cookie)
-FIREBASE_PROJECT_ID=
-FIREBASE_CLIENT_EMAIL=
-FIREBASE_PRIVATE_KEY=     # paste the JSON's private_key value; \n escapes are fine
-SESSION_SECRET=           # 32+ random chars, signs the session JWT
+# Supabase — browser SDK (public values, safe to expose)
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
 
-# Firebase Auth — client side (public config, not a secret)
-NEXT_PUBLIC_FIREBASE_API_KEY=
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=
-NEXT_PUBLIC_FIREBASE_APP_ID=
+# Supabase — server side. Optional: only the anon key is needed to verify a
+# token. Add the service role key if you later need admin operations
+# (listing users, creating accounts without email confirmation).
+SUPABASE_SERVICE_ROLE_KEY=
+
+# Session
+SESSION_SECRET=           # 32+ random chars, signs the session JWT
 
 MEOW_AI_API_KEY=
 MEOW_AI_API_URL=
@@ -55,18 +55,25 @@ MEOW_AI_ADMIN_EMAILS=   # comma-separated admin emails (required to access /admi
 MEOW_AI_ALLOWED_EMAILS= # optional comma-separated allowlist; unset = invite-only via admin grants
 ```
 
-### Firebase console setup
+### Supabase setup
 
-1. **Authentication → Sign-in method** → enable **Google**
-2. **Authentication → Settings → Authorized domains** → add your production domain
-   (e.g. `www.meowai.work.gd`). Without this, sign-in fails with
-   `auth/unauthorized-domain`.
-3. **Project settings → Service accounts → Generate new private key** → JSON
+1. **Project Settings → Data API** → copy the **Project URL** and the
+   **publishable / anon key** into `NEXT_PUBLIC_SUPABASE_URL` and
+   `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Copy the **service role** key into
+   `SUPABASE_SERVICE_ROLE_KEY` (optional).
+2. **Authentication → Providers → Email** → enable **Email** with
+   "Confirm email" turned **off**, so new accounts can sign in immediately.
+3. **Authentication → Users → Add user** → create the first account, set a
+   password, and tick **Auto Confirm User**.
 
-The browser SDK is only used to obtain a Google ID token. All data access goes
-through our own API routes, and the session is a `jose`-signed httpOnly cookie
-that edge middleware can verify without a database round-trip. Revocation is
-still enforced per-request against the `AppUser` table.
+That is the whole setup. There is no OAuth client, no authorized-domain list and
+no test-user list to maintain — one service handles both auth and the database.
+
+The browser SDK is only used to exchange an email + password for an access
+token. All data access goes through our own API routes, and the session is a
+`jose`-signed httpOnly cookie that edge middleware can verify without a database
+round-trip. Revocation is still enforced per-request against the `AppUser`
+table.
 
 ### Applying the schema
 

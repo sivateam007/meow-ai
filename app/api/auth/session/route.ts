@@ -1,13 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { rateLimit } from "@/lib/ratelimit";
 import { authorizeSignIn, getSessionUser } from "@/lib/auth";
-import { verifyFirebaseIdToken } from "@/lib/firebase/admin";
+import { verifySupabaseAccessToken } from "@/lib/supabase/server";
 import { SESSION_COOKIE, createSessionToken, sessionCookieOptions } from "@/lib/session";
 
 /**
  * Replaces the former NextAuth handler.
  *
- * POST   — client sends a Firebase ID token, we verify it, apply the
+ * POST   — client sends a Supabase access token, we verify it, apply the
  *          invite-only rules and set the session cookie.
  * GET    — returns the current user (used by the client auth provider).
  * DELETE — clears the session cookie.
@@ -31,22 +31,22 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let body: { idToken?: string };
+  let body: { accessToken?: string };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  if (!body?.idToken || typeof body.idToken !== "string") {
-    return NextResponse.json({ error: "Missing idToken" }, { status: 400 });
+  if (!body?.accessToken || typeof body.accessToken !== "string") {
+    return NextResponse.json({ error: "Missing accessToken" }, { status: 400 });
   }
 
   let profile: { email: string; name: string; picture: string };
   try {
-    profile = await verifyFirebaseIdToken(body.idToken);
+    profile = await verifySupabaseAccessToken(body.accessToken);
   } catch (e) {
-    console.error("[auth] id token verification failed", e);
+    console.error("[auth] access token verification failed", e);
     return NextResponse.json({ error: "Sign-in could not be verified. Please try again." }, { status: 401 });
   }
 

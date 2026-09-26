@@ -1,6 +1,6 @@
 "use client";
 
-import GoogleSignInButton from "@/components/GoogleSignInButton";
+import SignInForm from "@/components/SignInForm";
 
 export default function AccessDeniedPage() {
   return (
@@ -17,11 +17,12 @@ export default function AccessDeniedPage() {
         </div>
         <div className="bg-[#1e1b2e] border border-[#3b3558] rounded-2xl p-6">
           <p className="text-gray-400 text-sm mb-4">
-            You don&apos;t have access yet. Sign in with your Google account and we&apos;ll
-            automatically send an access request to the admin &mdash; no need to type your
-            email. Once approved, sign in again to start chatting.
+            You don&apos;t have access yet. Sign in with the email you were invited
+            with and we&apos;ll automatically send an access request to the admin
+            &mdash; no need to wait for a reply. Once approved, sign in again to
+            start chatting.
           </p>
-          <GoogleSignInButton />
+          <SignInForm />
           <button
             onClick={() => window.location.reload()}
             className="w-full py-2.5 rounded-xl border border-[#3b3558] text-gray-300 text-sm hover:bg-[#3d3760] transition-colors mt-3"

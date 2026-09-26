@@ -1,6 +1,6 @@
 "use client";
 
-import GoogleSignInButton from "@/components/GoogleSignInButton";
+import SignInForm from "@/components/SignInForm";
 
 export default function LoginPage() {
   return (
@@ -16,7 +16,7 @@ export default function LoginPage() {
           <p className="text-gray-400">Sign in to start chatting</p>
         </div>
         <div className="bg-[#1e1b2e] border border-[#3b3558] rounded-2xl p-6">
-          <GoogleSignInButton />
+          <SignInForm />
         </div>
         <p className="text-center text-xs text-gray-600 mt-4">
           Meow AI &mdash; Your friendly AI assistant

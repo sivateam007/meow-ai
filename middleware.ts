@@ -5,7 +5,7 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
  * Edge middleware.
  *
  * The session cookie is a self-contained JWT signed with SESSION_SECRET, so it
- * can be verified here without Prisma or the Firebase Admin SDK (neither runs
+ * can be verified here without Prisma or the Supabase SDK (neither runs
  * on the edge). This is a fast first line of defence only — every API route
  * re-checks the session and revocation status server-side.
  */

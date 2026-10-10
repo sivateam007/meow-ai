@@ -5,21 +5,21 @@ A friendly AI chat assistant with a cat theme, built with Next.js.
 ## Features
 
 - AI-powered chat with streaming responses
-- Google sign-in with cloud-synced conversations
+- Single-password sign-in with cloud-synced conversations
 - Voice input (speech recognition)
 - Read aloud (text-to-speech) on responses
 - Live mode for automatic voice responses
 - Web search for real-time data (DuckDuckGo)
 - File uploads (text and code)
-- Invite-only access with admin approval
+- Admin screen for reviewing every conversation
 - Code syntax highlighting
-- 7 free AI models with cat names
+- Free AI models with cat names
 - Mobile-responsive design
 
 ## Tech Stack
 
 - **Frontend:** Next.js 15, React 19, Tailwind CSS 3
-- **Auth:** Supabase Auth (email + password) + a `jose` session cookie
+- **Auth:** one shared secret, verified server-side, issued as a `jose` session cookie
 - **Database:** PostgreSQL via Prisma (Supabase or any Postgres host)
 - **Deployment:** Render
 
@@ -37,68 +37,62 @@ A friendly AI chat assistant with a cat theme, built with Next.js.
 DATABASE_URL=
 DIRECT_URL=
 
-# Supabase — browser SDK (public values, safe to expose)
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
+# Session — 32+ random chars, signs the session JWT
+SESSION_SECRET=
 
-# Supabase — server side. Optional: only the anon key is needed to verify a
-# token. Add the service role key if you later need admin operations
-# (listing users, creating accounts without email confirmation).
-SUPABASE_SERVICE_ROLE_KEY=
+# Sign-in — the single shared password. Generate one with `npm run secret`.
+MEOW_LOGIN_SECRET=
 
-# Session
-SESSION_SECRET=           # 32+ random chars, signs the session JWT
+# Optional identity carried by the session cookie. Chat history is keyed off
+# this address; defaults to the first entry of MEOW_AI_ADMIN_EMAILS.
+MEOW_LOGIN_EMAIL=
+MEOW_LOGIN_NAME=
 
 MEOW_AI_API_KEY=
 MEOW_AI_API_URL=
-MEOW_AI_ADMIN_EMAILS=   # comma-separated admin emails (required to access /admin)
-MEOW_AI_ALLOWED_EMAILS= # optional comma-separated allowlist; unset = invite-only via admin grants
+
+# Comma-separated. Required to reach /admin.
+MEOW_AI_ADMIN_EMAILS=
 ```
 
-### Supabase setup
+### Sign-in
 
-**Required for every sign-in method**
+This app is used by one person, so it has no accounts to create and no
+identity provider to configure. Sign-in proves knowledge of one secret:
 
-1. **Project Settings → Data API** → copy the **Project URL** and the
-   **publishable / anon key** into `NEXT_PUBLIC_SUPABASE_URL` and
-   `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Copy the **service role** key into
-   `SUPABASE_SERVICE_ROLE_KEY` (optional).
-2. **Authentication → URL Configuration → Redirect URLs** → add your production
-   origin, e.g. `https://www.meowai.work.gd/login`. Google sign-in returns
-   there, and Supabase rejects the redirect if it is not allow-listed.
+1. `npm run secret` prints a strong passphrase and, underneath it, an
+   `scrypt$…` value. Either can go in `MEOW_LOGIN_SECRET`; the `scrypt$…` form
+   means a leaked environment variable only exposes a slow-hash target.
+2. Set `MEOW_LOGIN_SECRET` in Render (or `.env.local`), plus
+   `MEOW_LOGIN_EMAIL` and `SESSION_SECRET` if you have not set them already.
+3. To rotate the password, generate a new value and update the variable.
+   Nothing else needs to change.
 
-**Email + password**
+Signing in touches no database and makes no external request, so the login
+page keeps working even if Postgres is paused or the provider is down. Every
+API route still verifies the session cookie server-side on each request, and
+`/admin` additionally requires the email to be listed in `MEOW_AI_ADMIN_EMAILS`.
 
-3. **Authentication → Providers → Email** → enable, with "Confirm email" turned
-   **off** so accounts can sign in immediately.
-4. **Authentication → Users → Add user** → create the first account, set a
-   password, and tick **Auto Confirm User**.
+### Choosing models
 
-**Google (optional, in addition to the above)**
+`lib/types.ts` lists one cat per model. Every id there must exist on the
+provider's live model list — an id the provider has retired returns 404/410
+and wastes a fallback attempt. Check them before shipping:
 
-5. Google Cloud Console → **Credentials → Create credentials → OAuth client ID →
-   Web application**. Add
-   `https://<project-ref>.supabase.co/auth/v1/callback` under **Authorized
-   redirect URIs**.
-6. **Google Auth Platform → Audience** → while the app is in *Testing*, add each
-   allowed Gmail under **Test users**. Publishing the app removes this limit.
-7. **Authentication → Providers → Google** in Supabase → paste the client ID
-   and client secret → **Save**.
+```bash
+curl -s https://opencode.ai/zen/v1/models -H "Authorization: Bearer $MEOW_AI_API_KEY"
+```
 
-Google and email/password are independent: if the Google provider is left
-unconfigured the button fails while password sign-in keeps working.
-
-The browser SDK is only used to obtain an access token. All data access goes
-through our own API routes, and the session is a `jose`-signed httpOnly cookie
-that edge middleware can verify without a database round-trip. Revocation is
-still enforced per-request against the `AppUser` table.
+The fallback chain in `app/api/chat/route.ts` is derived from that same list,
+so adding or removing a cat automatically adds or removes it from the retry
+order.
 
 ### Applying the schema
 
 A brand-new Postgres host starts empty. Run this once against it:
 
 ```bash
-DATABASE_URL="<direct-uri>" npx prisma db push
+DATABASE_URL="<connection-uri>" npm run db:push
 ```
 
 ## Author

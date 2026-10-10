@@ -2,9 +2,7 @@ import { NextRequest } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { rateLimit } from "@/lib/ratelimit";
-import { isAdminEmail, isAllowedEmail } from "@/lib/access";
-
-export { isAdminEmail, isAllowedEmail };
+import { isAdminEmail } from "@/lib/access";
 
 export async function isAdmin(email: string): Promise<boolean> {
   if (isAdminEmail(email)) return true;

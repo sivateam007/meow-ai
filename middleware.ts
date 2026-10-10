@@ -5,9 +5,9 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
  * Edge middleware.
  *
  * The session cookie is a self-contained JWT signed with SESSION_SECRET, so it
- * can be verified here without Prisma or the Supabase SDK (neither runs
- * on the edge). This is a fast first line of defence only — every API route
- * re-checks the session and revocation status server-side.
+ * can be verified here without Prisma (which does not run on the edge). This is
+ * a fast first line of defence only — every API route re-checks the session
+ * server-side.
  */
 export async function middleware(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
@@ -26,5 +26,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!login|access-denied|api/auth|api/request-access|\.well-known|manifest\.webmanifest|icons|_next|favicon.ico|cat-bg\.png|globals\.css).*)"],
+  matcher: ["/((?!login|api/auth|\.well-known|manifest\.webmanifest|icons|_next|favicon.ico|cat-bg\.png|globals\.css).*)"],
 };

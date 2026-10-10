@@ -49,17 +49,25 @@ export const DEFAULT_SETTINGS: Settings = {
   voiceVolume: 1,
 };
 
+/**
+ * The model roster, one cat per model.
+ *
+ * Every `id` here must be verified against the provider's live model list
+ * before it ships — an id the provider has retired returns 404/410 and wastes
+ * a fallback attempt. The count of cats is therefore capped by the count of
+ * models the provider actually offers.
+ */
 export const AVAILABLE_MODELS = [
   { id: "big-pickle", name: "Whiskers", personality: "Warm and thoughtful — gives clear, detailed explanations." },
-  { id: "hy3-free", name: "Bolt", personality: "Fast and sharp — concise answers that get straight to the point. Shows its reasoning." },
-  { id: "mimo-v2.5-free", name: "Mittens", personality: "Playful and creative — loves analogies and vivid explanations." },
-  { id: "nemotron-3-ultra-free", name: "Simba", personality: "Confident and comprehensive — thorough, well-structured deep dives." },
   { id: "nemotron-3.5-lightning-free", name: "Flash", personality: "Quick-witted and energetic — snappy responses with a lively tone." },
-  { id: "deepseek-v4-flash-free", name: "Shadow", personality: "Mysterious and analytical — precise technical reasoning." },
-  { id: "laguna-s-2.1-free", name: "Nala", personality: "Gentle and supportive — encouraging, patient guidance." },
   { id: "muse-spark-1.2-contributor-free", name: "Spark", personality: "Bright and insightful — sparks new ideas and connections." },
+  { id: "muse-spark-1.3-contributor-free", name: "Ember", personality: "Fresh and inventive — refines an idea with a newer perspective." },
 ];
 
 export function getModelById(id: string) {
   return AVAILABLE_MODELS.find((m) => m.id === id) || AVAILABLE_MODELS[0];
+}
+
+export function isAvailableModel(id: string): boolean {
+  return AVAILABLE_MODELS.some((m) => m.id === id);
 }

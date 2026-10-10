@@ -1,12 +1,23 @@
-import { Conversation, DEFAULT_SETTINGS, Settings } from "./types";
+import { Conversation, DEFAULT_SETTINGS, Settings, isAvailableModel } from "./types";
 
 const SETTINGS_KEY = "meow-ai-settings";
 
+/**
+ * Reads settings, falling back to the defaults.
+ *
+ * A stored `model` is validated against the live roster: models are retired by
+ * the provider from time to time, and a stale id left in localStorage would
+ * otherwise make the server reject every message with "Invalid model".
+ */
 export function getSettings(): Settings {
   if (typeof window === "undefined") return DEFAULT_SETTINGS;
   try {
     const data = localStorage.getItem(SETTINGS_KEY);
-    return data ? { ...DEFAULT_SETTINGS, ...JSON.parse(data) } : DEFAULT_SETTINGS;
+    if (!data) return DEFAULT_SETTINGS;
+    const parsed = { ...DEFAULT_SETTINGS, ...JSON.parse(data) };
+    return isAvailableModel(parsed.model)
+      ? parsed
+      : { ...parsed, model: DEFAULT_SETTINGS.model };
   } catch {
     return DEFAULT_SETTINGS;
   }

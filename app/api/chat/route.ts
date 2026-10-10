@@ -4,7 +4,7 @@ import { webSearch, formatSearchResults } from "@/lib/search";
 import { rateLimit } from "@/lib/ratelimit";
 import { isAdmin } from "@/lib/admin";
 import { SYSTEM_PROMPT } from "@/lib/constants";
-import { getModelById } from "@/lib/types";
+import { AVAILABLE_MODELS, DEFAULT_SETTINGS, getModelById } from "@/lib/types";
 
 interface ApiAttachment {
   name: string;
@@ -25,18 +25,29 @@ const SEARCH_CONTEXT_CAP = 2000;
 const MAX_FALLBACK_RETRIES = 4;
 const FALLBACK_DELAY_MS = 300;
 
-const FALLBACK_MODELS = [
-  "big-pickle",
-  "hy3-free",
-  "mimo-v2.5-free",
-  "nemotron-3-ultra-free",
-  "nemotron-3.5-lightning-free",
-  "deepseek-v4-flash-free",
-  "laguna-s-2.1-free",
-  "muse-spark-1.2-contributor-free",
-];
+const DEFAULT_MODEL = DEFAULT_SETTINGS.model;
 
-const RESPONSES_ENDPOINT_MODELS = new Set(["muse-spark-1.2-contributor-free"]);
+/**
+ * The fallback chain mirrors the roster in `lib/types.ts` exactly.
+ *
+ * Deriving it rather than repeating the ids keeps the two in step: a model that
+ * is removed from the roster is automatically removed from the fallback chain,
+ * so a retired id can never consume a retry returning 404.
+ */
+const FALLBACK_MODELS = AVAILABLE_MODELS.map((m) => m.id);
+
+/**
+ * Models that speak the Responses API rather than Chat Completions.
+ *
+ * `muse-spark-1.3-contributor-free` is listed alongside its 1.2 predecessor as
+ * the same vendor family, which very likely shares the API shape. If that guess
+ * is wrong the request 404s and the fallback chain moves on, so being incorrect
+ * costs one attempt rather than breaking the chat.
+ */
+const RESPONSES_ENDPOINT_MODELS = new Set([
+  "muse-spark-1.2-contributor-free",
+  "muse-spark-1.3-contributor-free",
+]);
 
 const modelBlacklist = new Map<string, number>();
 
@@ -63,8 +74,14 @@ function blacklistModel(modelId: string, seconds: number): void {
 }
 
 function friendlyError(rawMessage: string, status: number): string {
+  // These statuses describe the upstream provider refusing us, not the user's
+  // own sign-in, so calling it an "authentication error" would be misleading.
   if (status === 401 || status === 403) {
-    return "Authentication error. Please try again.";
+    return "The AI provider is refusing requests right now — its free quota may be used up. Please try again later.";
+  }
+
+  if (status === 402) {
+    return "The AI provider requires payment for this model. Please try again later.";
   }
 
   const m = (rawMessage || "").toLowerCase();
@@ -281,10 +298,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const { finalMessages } = buildApiMessages(workingMessages, settings?.model || "big-pickle");
+    const { finalMessages } = buildApiMessages(workingMessages, settings?.model || DEFAULT_MODEL);
     const temperature = Math.min(2, Math.max(0, settings?.temperature ?? 0.7));
     const maxTokens = Math.min(8192, Math.max(1, settings?.maxTokens ?? 2048));
-    const requestedModel = settings?.model || "big-pickle";
+    const requestedModel = settings?.model || DEFAULT_MODEL;
 
     const allowedModels = new Set(FALLBACK_MODELS);
     if (!allowedModels.has(requestedModel)) {

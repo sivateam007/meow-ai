@@ -106,6 +106,8 @@ export function verifyLoginSecret(candidate: unknown): SecretCheck {
 export interface LoginIdentity {
   email: string;
   name: string;
+  /** Always empty: there is no avatar without an identity provider. */
+  image: string;
 }
 
 function firstAdminEmail(): string {
@@ -133,6 +135,7 @@ export function loginIdentity(): LoginIdentity {
   return {
     email: email.toLowerCase(),
     name: process.env.MEOW_LOGIN_NAME?.trim() || "Meow",
+    image: "",
   };
 }
 

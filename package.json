@@ -9,6 +9,7 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "secret": "node scripts/gen-login-secret.mjs",
+    "typecheck": "tsc --noEmit",
     "lint": "next lint"
   },
   "dependencies": {

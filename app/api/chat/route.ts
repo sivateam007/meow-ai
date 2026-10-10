@@ -100,6 +100,11 @@ function friendlyError(rawMessage: string, status: number): string {
 function isRetryable(status: number, message: string): boolean {
   if (status === 429) return true;
   if (status === 404) return true;
+  // The provider refuses most free models at the account level; move on to the
+  // next cat rather than failing the message outright.
+  if (status === 403) return true;
+  // Retired model id.
+  if (status === 410) return true;
   if (status >= 500) return true;
   const m = (message || "").toLowerCase();
   if (/rate.?limit|unavailable|not found|not supported|too many/i.test(m)) return true;
@@ -221,6 +226,10 @@ async function tryFetchModel(
     }
     if (response.status === 429) blacklistModel(modelId, 60);
     else if (response.status >= 500 || /unavailable|not found/i.test(message)) blacklistModel(modelId, 30);
+    // A refusal or a retired id is an account/catalog problem that will not fix
+    // itself in seconds. Park the model so the next message goes straight to a
+    // cat that works instead of re-testing the dead ones first.
+    else if (response.status === 403 || response.status === 410) blacklistModel(modelId, 300);
     return { error: message, status: response.status };
   }
 

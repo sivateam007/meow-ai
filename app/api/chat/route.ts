@@ -82,9 +82,15 @@ function blacklistModel(modelId: string, seconds: number): void {
 }
 
 function friendlyError(rawMessage: string, status: number): string {
-  // These statuses describe the upstream provider refusing us, not the user's
-  // own sign-in, so calling it an "authentication error" would be misleading.
-  if (status === 401 || status === 403) {
+  // A 401 is an access-key problem, not a quota problem. Conflating the two
+  // sends the operator hunting through billing pages when the actual fix is a
+  // rotated, mistyped or still-unset key — which is exactly the mistake this
+  // message caused when the provider was switched.
+  if (status === 401) {
+    return "The AI provider rejected our access key — it may have been rotated, revoked, or not set yet.";
+  }
+
+  if (status === 403) {
     return "The AI provider is refusing requests right now — its free quota may be used up. Please try again later.";
   }
 

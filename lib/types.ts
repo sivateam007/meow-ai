@@ -40,7 +40,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  model: "space-bunny-free",
+  model: "nvidia/nemotron-3.5-lightning:free",
   temperature: 0.7,
   maxTokens: 2048,
   webSearch: false,
@@ -54,19 +54,20 @@ export const DEFAULT_SETTINGS: Settings = {
  *
  * Every `id` here must be verified against the provider's live model list
  * before it ships — an id the provider has retired returns 404/410 and wastes
- * a fallback attempt. The count of cats is therefore capped by the count of
- * models the provider actually offers.
+ * a fallback attempt.
  *
- * Luna is first because it is the default and the only model in this list
- * confirmed to answer; the others are currently refused by the provider with
- * 403 and are kept only so the fallback chain can try them if that changes.
+ * These ids come from OpenRouter's free tier, which unlike OpenCode's is not
+ * restricted to calls made from inside their own app. Nemotron appears three
+ * times because it is the family this app was originally built around; the
+ * ids are OpenRouter's, so they carry the `:free` suffix and the vendor
+ * prefix.
  */
 export const AVAILABLE_MODELS = [
-  { id: "space-bunny-free", name: "Luna", personality: "Calm and dependable — the one that always answers." },
-  { id: "big-pickle", name: "Whiskers", personality: "Warm and thoughtful — gives clear, detailed explanations." },
-  { id: "nemotron-3.5-lightning-free", name: "Flash", personality: "Quick-witted and energetic — snappy responses with a lively tone." },
-  { id: "muse-spark-1.3-contributor-free", name: "Spark", personality: "Bright and insightful — sparks new ideas and connections." },
-  { id: "muse-spark-1.2-contributor-free", name: "Ember", personality: "Fresh and inventive — refines an idea with a newer perspective." },
+  { id: "nvidia/nemotron-3.5-lightning:free", name: "Flash", personality: "Quick-witted and energetic — snappy responses with a lively tone." },
+  { id: "nvidia/nemotron-3-ultra-550b-a55b:free", name: "Whiskers", personality: "Warm and thoughtful — gives clear, detailed explanations." },
+  { id: "nvidia/nemotron-3-super-120b-a12b:free", name: "Spark", personality: "Bright and insightful — sparks new ideas and connections." },
+  { id: "google/gemma-4-31b-it:free", name: "Ember", personality: "Fresh and inventive — refines an idea with a newer perspective." },
+  { id: "thinkingmachines/inkling:free", name: "Luna", personality: "Calm and dependable — the one that always answers." },
 ];
 
 export function getModelById(id: string) {

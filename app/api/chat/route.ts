@@ -39,15 +39,12 @@ const FALLBACK_MODELS = AVAILABLE_MODELS.map((m) => m.id);
 /**
  * Models that speak the Responses API rather than Chat Completions.
  *
- * `muse-spark-1.3-contributor-free` is listed alongside its 1.2 predecessor as
- * the same vendor family, which very likely shares the API shape. If that guess
- * is wrong the request 404s and the fallback chain moves on, so being incorrect
- * costs one attempt rather than breaking the chat.
+ * Empty while the provider is OpenRouter, whose free tier is uniformly
+ * Chat Completions. Kept as a mechanism rather than deleted because every
+ * other provider this app has used has mixed the two, and the stream parser
+ * below is already written for both shapes.
  */
-const RESPONSES_ENDPOINT_MODELS = new Set([
-  "muse-spark-1.2-contributor-free",
-  "muse-spark-1.3-contributor-free",
-]);
+const RESPONSES_ENDPOINT_MODELS = new Set<string>();
 
 const modelBlacklist = new Map<string, number>();
 

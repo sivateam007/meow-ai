@@ -17,6 +17,7 @@ import {
   getSettings,
   saveSettings,
   generateTitle,
+  makeLocalConversation,
 } from "@/lib/storage";
 
 const FLUSH_INTERVAL_MS = 60;
@@ -67,10 +68,10 @@ export default function Home() {
 
   const handleNewChat = async () => {
     const conv = await createConversationAPI("New Chat", []);
-    if (conv) {
-      refreshConversations();
-      setActiveConv(conv);
-    }
+    // A null here means the database is unreachable. Fall back to a local
+    // conversation so the button still opens a usable chat.
+    if (conv) refreshConversations();
+    setActiveConv(conv ?? makeLocalConversation());
   };
 
   const handleSelectChat = async (id: string) => {
@@ -336,8 +337,14 @@ export default function Home() {
     let conv = activeConv;
     if (!conv) {
       conv = await createConversationAPI("New Chat", []);
-      if (!conv) return;
-      refreshConversations();
+      if (conv) {
+        refreshConversations();
+      } else {
+        // The database is unreachable. Chatting does not require it, so carry
+        // on with a browser-only conversation instead of returning early and
+        // dropping the user's message on the floor.
+        conv = makeLocalConversation();
+      }
       setActiveConv(conv);
     }
 

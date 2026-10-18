@@ -33,6 +33,27 @@ export function generateTitle(content: string): string {
   return clean.length > 40 ? clean.substring(0, 40) + "..." : clean;
 }
 
+/**
+ * Builds a conversation that exists only in this browser tab.
+ *
+ * Chatting itself needs no persistence — the server streams a reply straight
+ * from the request. So when the database is unreachable this keeps the message
+ * flowing rather than silently swallowing it and leaving the composer looking
+ * dead. The trade-off is that history for this conversation is lost on reload,
+ * which is the right call: a working chat that forgets beats a chat that
+ * refuses to answer.
+ */
+export function makeLocalConversation(): Conversation {
+  const now = Date.now();
+  return {
+    id: `local-${now}`,
+    title: "New Chat",
+    messages: [],
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
 export async function fetchConversations(): Promise<Conversation[]> {
   const res = await fetch("/api/conversations");
   if (!res.ok) return [];

@@ -51,6 +51,17 @@ const RESPONSES_ENDPOINT_MODELS = new Set([
 
 const modelBlacklist = new Map<string, number>();
 
+/**
+ * The most recent upstream failure, kept across requests.
+ *
+ * Every candidate can be parked at once: a 403 blacklists a model for five
+ * minutes, so a repeat message finds nothing left to try. Without remembering
+ * why they were parked, that request would report the loop counter's untouched
+ * default and tell the user "provider error", which is both wrong and a waste
+ * of a debugging session.
+ */
+let lastKnownFailure: { error: string; status: number } | null = null;
+
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
@@ -230,6 +241,7 @@ async function tryFetchModel(
     // itself in seconds. Park the model so the next message goes straight to a
     // cat that works instead of re-testing the dead ones first.
     else if (response.status === 403 || response.status === 410) blacklistModel(modelId, 300);
+    lastKnownFailure = { error: message, status: response.status };
     return { error: message, status: response.status };
   }
 
@@ -329,12 +341,14 @@ export async function POST(request: NextRequest) {
     let lastStatus = 500;
     let successResponse: Response | null = null;
     let usedModel = requestedModel;
+    let attempted = 0;
 
     for (let attempt = 0; attempt < Math.min(modelOrder.length, MAX_FALLBACK_RETRIES + 1); attempt++) {
       const model = modelOrder[attempt];
 
       if (isModelBlacklisted(model)) continue;
 
+      attempted++;
       usedModel = model;
 
       if (attempt > 0) await sleep(FALLBACK_DELAY_MS);
@@ -355,6 +369,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (!successResponse) {
+      // Nothing was tried because every cat is parked. Surface the real reason
+      // they were parked rather than the untouched 500 default.
+      if (attempted === 0 && lastKnownFailure) {
+        lastError = lastKnownFailure.error;
+        lastStatus = lastKnownFailure.status;
+      }
       const msg = friendlyError(lastError, lastStatus);
       return new Response(
         JSON.stringify({ error: msg }),
